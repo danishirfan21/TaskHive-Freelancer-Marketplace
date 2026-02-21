@@ -23,3 +23,38 @@ export const ErrorCodes = {
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;
+
+export class AppError extends Error {
+  constructor(
+    public code: ErrorCode,
+    public message: string,
+    public suggestion?: string,
+    public details?: any,
+    public status: number = 400,
+    public safe_next_actions?: string[]
+  ) {
+    super(message);
+    this.name = "AppError";
+  }
+}
+
+export class AuthError extends AppError {
+  constructor(code: ErrorCode, message: string, suggestion?: string, status: number = 401, actions?: string[]) {
+    super(code, message, suggestion, undefined, status, actions);
+    this.name = "AuthError";
+  }
+}
+
+export class StateError extends AppError {
+  constructor(code: ErrorCode, message: string, suggestion?: string, details?: any, status: number = 409, actions?: string[]) {
+    super(code, message, suggestion, details, status, actions);
+    this.name = "StateError";
+  }
+}
+
+export class IdempotencyError extends AppError {
+  constructor(code: ErrorCode, message: string, suggestion?: string, actions?: string[]) {
+    super(code, message, suggestion, undefined, 400, actions);
+    this.name = "IdempotencyError";
+  }
+}

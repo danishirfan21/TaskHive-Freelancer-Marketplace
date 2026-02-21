@@ -1,29 +1,15 @@
 import { db } from "@/db";
-import { tasks, taskStatusEnum, claims, deliverables, creditTransactions } from "@/db/schema";
-import { eq, and, gt, sql, desc } from "drizzle-orm";
+import { tasks, claims, deliverables, creditTransactions } from "@/db/schema";
+import { eq, and, gt, desc } from "drizzle-orm";
 import { z } from "zod";
+import { AppError, StateError, ValidationError } from "@/lib/errors";
+import { assertTransition } from "@/domain/taskStateMachine";
 
 export const CreateTaskSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().min(1),
   budget: z.number().int().positive(),
 });
-
-export const UpdateTaskStatusSchema = z.object({
-  status: taskStatusEnum.enumValues ? z.enum(taskStatusEnum.enumValues) : z.string(),
-});
-
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  OPEN: ["CLAIMED", "CANCELED"],
-  CLAIMED: ["DELIVERED"],
-  DELIVERED: ["ACCEPTED", "CLAIMED"], // CLAIMED here is for revision path
-};
-
-export function validateTaskTransition(current: string, next: string) {
-  if (current === next) return true;
-  const allowed = ALLOWED_TRANSITIONS[current] || [];
-  return allowed.includes(next);
-}
 
 export async function createTask(posterId: number, data: z.infer<typeof CreateTaskSchema>) {
   const [task] = await db
@@ -102,13 +88,15 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
         where: eq(tasks.id, taskId)
       });
 
-      if (!task) throw new Error("TASK_NOT_FOUND");
-      if (task.status !== "OPEN") throw new Error("TASK_NOT_OPEN");
-      throw new Error("INTERNAL_ERROR");
+      if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
+      if (task.status !== "OPEN") {
+        throw new StateError("TASK_NOT_OPEN", `Task ${taskId} is no longer OPEN.`, "Refresh open tasks and select another.", { taskId }, 409, ["BROWSE_TASKS"]);
+      }
+      throw new AppError("INTERNAL_ERROR", "Failed to update task status");
     }
 
     if (proposedCredits > updatedTask.budget) {
-      throw new Error("INVALID_PROPOSED_CREDITS");
+      throw new ValidationError("INVALID_PROPOSED_CREDITS", "Proposed credits exceed budget", "Lower your bid", undefined, 400, ["BROWSE_TASKS"]);
     }
 
     await tx.insert(claims).values({
@@ -133,9 +121,9 @@ export async function deliverTask(taskId: number, agentId: number, content: stri
       where: eq(tasks.id, taskId)
     });
 
-    if (!task) throw new Error("TASK_NOT_FOUND");
-    if (task.status !== "CLAIMED") throw new Error("TASK_NOT_CLAIMED");
-    if (task.claimedBy !== agentId) throw new Error("NOT_TASK_ASSIGNEE");
+    if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
+    if (task.status !== "CLAIMED") throw new StateError("TASK_NOT_CLAIMED", "Task is not in CLAIMED state.", "Wait for the task to be claimed.", undefined, 409, ["BROWSE_TASKS"]);
+    if (task.claimedBy !== agentId) throw new AuthError("NOT_TASK_ASSIGNEE", "You are not the assignee of this task.", "Only the agent who claimed the task can deliver it.", 403, ["BROWSE_TASKS"]);
 
     const latestDeliverable = await tx.query.deliverables.findFirst({
       where: eq(deliverables.taskId, taskId),
@@ -173,9 +161,9 @@ export async function requestRevision(taskId: number, posterId: number) {
       where: eq(tasks.id, taskId)
     });
 
-    if (!task) throw new Error("TASK_NOT_FOUND");
-    if (task.posterId !== posterId) throw new Error("FORBIDDEN");
-    if (task.status !== "DELIVERED") throw new Error("TASK_NOT_DELIVERED");
+    if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
+    if (task.posterId !== posterId) throw new AuthError("FORBIDDEN", "Only the task poster can request revisions.", undefined, 403);
+    if (task.status !== "DELIVERED") throw new StateError("TASK_NOT_DELIVERED", "Task must be in DELIVERED state to request revision.", undefined, undefined, 409);
 
     await tx.update(tasks)
       .set({
@@ -204,10 +192,10 @@ export async function acceptTask(taskId: number, posterId: number) {
       where: eq(tasks.id, taskId)
     });
 
-    if (!task) throw new Error("TASK_NOT_FOUND");
-    if (task.posterId !== posterId) throw new Error("FORBIDDEN");
-    if (task.status === "ACCEPTED") throw new Error("TASK_ALREADY_ACCEPTED");
-    if (task.status !== "DELIVERED") throw new Error("TASK_NOT_DELIVERED");
+    if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
+    if (task.posterId !== posterId) throw new AuthError("FORBIDDEN", "Only the task poster can accept the delivery.", undefined, 403);
+    if (task.status === "ACCEPTED") throw new StateError("TASK_ALREADY_ACCEPTED", "Task has already been accepted.", undefined, undefined, 409, ["BROWSE_TASKS"]);
+    if (task.status !== "DELIVERED") throw new StateError("TASK_NOT_DELIVERED", "Task has not been delivered yet.", undefined, undefined, 409, ["BROWSE_TASKS"]);
 
     const deliverable = await tx.query.deliverables.findFirst({
       where: and(
@@ -217,7 +205,7 @@ export async function acceptTask(taskId: number, posterId: number) {
       orderBy: desc(deliverables.revisionNumber)
     });
 
-    if (!deliverable) throw new Error("DELIVERABLE_NOT_FOUND");
+    if (!deliverable) throw new StateError("DELIVERABLE_NOT_FOUND", "No deliverable found to accept.", undefined, undefined, 409, ["BROWSE_TASKS"]);
 
     await tx.update(tasks)
       .set({
@@ -247,12 +235,10 @@ export async function acceptTask(taskId: number, posterId: number) {
 
 export async function updateTaskStatus(taskId: number, userId: number, nextStatus: string) {
   const task = await getTaskById(taskId);
-  if (!task) throw new Error("TASK_NOT_FOUND");
-  if (task.posterId !== userId) throw new Error("FORBIDDEN");
+  if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
+  if (task.posterId !== userId) throw new AuthError("FORBIDDEN", "Only the poster can update this task.", undefined, 403);
 
-  if (!validateTaskTransition(task.status, nextStatus)) {
-    throw new Error("INVALID_STATE_TRANSITION");
-  }
+  assertTransition(task.status, nextStatus);
 
   const [updated] = await db
     .update(tasks)
@@ -265,3 +251,5 @@ export async function updateTaskStatus(taskId: number, userId: number, nextStatu
 
   return updated;
 }
+
+import { AuthError } from "@/lib/errors";

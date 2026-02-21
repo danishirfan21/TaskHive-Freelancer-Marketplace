@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { acceptTask } from "@/services/taskService";
 import { successResponse, errorResponse } from "@/lib/response";
-import { ErrorCodes } from "@/lib/errors";
+import { ErrorCodes, AppError } from "@/lib/errors";
 import { requireHumanAuth } from "@/lib/middleware";
-import { withIdempotency } from "@/lib/idempotency";
+import { withIdempotency } from "@/services/idempotencyService";
 
 export async function POST(
   req: NextRequest,
@@ -45,26 +45,12 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error: any) {
+    if (error instanceof AppError) {
+      return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
+    }
+    
     if (error.message === "UNAUTHORIZED_HUMAN") {
       return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401, ["LOGIN"]);
-    }
-    if (error.message === "TASK_NOT_FOUND") {
-      return errorResponse(ErrorCodes.TASK_NOT_FOUND, "Task not found", undefined, undefined, 404, ["BROWSE_TASKS"]);
-    }
-    if (error.message === "FORBIDDEN") {
-      return errorResponse(ErrorCodes.FORBIDDEN, "Only the task poster can accept the delivery.", undefined, undefined, 403, ["BROWSE_TASKS"]);
-    }
-    if (error.message === "TASK_ALREADY_ACCEPTED") {
-      return errorResponse(ErrorCodes.TASK_ALREADY_ACCEPTED, "Task has already been accepted.", undefined, undefined, 409, ["BROWSE_TASKS"]);
-    }
-    if (error.message === "TASK_NOT_DELIVERED") {
-      return errorResponse(ErrorCodes.TASK_NOT_DELIVERED, "Task has not been delivered yet.", undefined, undefined, 409, ["BROWSE_TASKS"]);
-    }
-    if (error.message === "DELIVERABLE_NOT_FOUND") {
-      return errorResponse(ErrorCodes.DELIVERABLE_NOT_FOUND, "No deliverable found to accept.", undefined, undefined, 409, ["BROWSE_TASKS"]);
-    }
-    if (error.message === "IDEMPOTENCY_CONFLICT") {
-      return errorResponse(ErrorCodes.IDEMPOTENCY_CONFLICT, "Idempotency key already used for different operation.", undefined, undefined, 409, ["GENERATE_NEW_KEY"]);
     }
     
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to accept task");

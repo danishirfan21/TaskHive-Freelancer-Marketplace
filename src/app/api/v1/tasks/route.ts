@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CreateTaskSchema, createTask, browseOpenTasks } from "@/services/taskService";
 import { successResponse, errorResponse } from "@/lib/response";
-import { ErrorCodes } from "@/lib/errors";
+import { ErrorCodes, AppError } from "@/lib/errors";
 import { requireHumanAuth, requireAgentAuth } from "@/lib/middleware";
-import { withIdempotency } from "@/lib/idempotency";
+import { withIdempotency } from "@/services/idempotencyService";
 import { z } from "zod";
 
 const PaginationSchema = z.object({
@@ -55,12 +55,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: any) {
+    if (error instanceof AppError) {
+      return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
+    }
+    
+    // Legacy error message handling for remaining services
     if (error.message === "UNAUTHORIZED_HUMAN") {
       return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401, ["LOGIN"]);
     }
-    if (error.message === "IDEMPOTENCY_CONFLICT") {
-      return errorResponse(ErrorCodes.IDEMPOTENCY_CONFLICT, "Idempotency key already used for different operation.", undefined, undefined, 409, ["GENERATE_NEW_KEY"]);
-    }
+    
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to create task");
   }
 }
@@ -83,7 +86,6 @@ export async function GET(req: NextRequest) {
 
     const { limit, cursor } = validatedParams.data;
 
-    // If Authorization header is present, it must be valid for an agent
     const authHeader = req.headers.get("Authorization");
     if (authHeader) {
       await requireAgentAuth(req);
@@ -93,15 +95,8 @@ export async function GET(req: NextRequest) {
     
     return successResponse({ tasks }, { next_cursor: nextCursor });
   } catch (error: any) {
-    if (error.message === "INVALID_API_KEY") {
-      return errorResponse(
-        ErrorCodes.INVALID_API_KEY,
-        "Agent API key is invalid.",
-        "Verify the key or generate a new one.",
-        undefined,
-        401,
-        ["GENERATE_NEW_KEY"]
-      );
+    if (error instanceof AppError) {
+      return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
     }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to list tasks");
   }
