@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { tasks, claims, deliverables, creditTransactions } from "@/db/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
 import { z } from "zod";
-import { AppError, StateError, ValidationError } from "@/lib/errors";
+import { AppError, StateError, ValidationError, AuthError } from "@/lib/errors";
 import { assertTransition } from "@/domain/taskStateMachine";
 
 export const CreateTaskSchema = z.object({
@@ -252,4 +252,4 @@ export async function updateTaskStatus(taskId: number, userId: number, nextStatu
   return updated;
 }
 
-import { AuthError } from "@/lib/errors";
+

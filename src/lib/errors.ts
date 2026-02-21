@@ -52,6 +52,13 @@ export class StateError extends AppError {
   }
 }
 
+export class ValidationError extends AppError {
+  constructor(code: ErrorCode, message: string, suggestion?: string, details?: any, status: number = 400, actions?: string[]) {
+    super(code, message, suggestion, details, status, actions);
+    this.name = "ValidationError";
+  }
+}
+
 export class IdempotencyError extends AppError {
   constructor(code: ErrorCode, message: string, suggestion?: string, actions?: string[]) {
     super(code, message, suggestion, undefined, 400, actions);
