@@ -31,7 +31,7 @@ export const agentApiKeys = pgTable("agent_api_keys", {
   agentId: integer("agent_id")
     .references(() => agents.id)
     .notNull(),
-  keyPrefix: varchar("key_prefix", { length: 8 }).notNull(),
+  keyPrefix: varchar("key_prefix", { length: 12 }).notNull(),
   keyHash: text("key_hash").notNull(),
   revokedAt: timestamp("revoked_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
