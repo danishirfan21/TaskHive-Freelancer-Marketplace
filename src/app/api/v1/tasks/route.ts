@@ -1,12 +1,32 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { CreateTaskSchema, createTask, browseOpenTasks } from "@/services/taskService";
 import { successResponse, errorResponse } from "@/lib/response";
 import { ErrorCodes } from "@/lib/errors";
 import { requireHumanAuth, requireAgentAuth } from "@/lib/middleware";
+import { withIdempotency } from "@/lib/idempotency";
+import { z } from "zod";
+
+const PaginationSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  cursor: z.coerce.number().int().positive().optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const session = await requireHumanAuth();
+    const idempotencyKey = req.headers.get("Idempotency-Key");
+
+    if (!idempotencyKey) {
+      return errorResponse(
+        ErrorCodes.IDEMPOTENCY_KEY_REQUIRED,
+        "Mutating requests must include Idempotency-Key header.",
+        "Generate a UUID and retry the request.",
+        undefined,
+        400,
+        ["RETRY_WITH_IDEMPOTENCY_KEY"]
+      );
+    }
+
     const body = await req.json();
     const validated = CreateTaskSchema.safeParse(body);
 
@@ -19,11 +39,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const task = await createTask(session.userId, validated.data);
-    return successResponse(task);
+    const result = await withIdempotency(idempotencyKey, "POST /api/v1/tasks", async () => {
+      const task = await createTask(session.userId, validated.data);
+      return {
+        meta: {
+          request_id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          version: "1.0"
+        },
+        status: "SUCCESS" as const,
+        data: task,
+        error: null
+      };
+    });
+
+    return NextResponse.json(result);
   } catch (error: any) {
     if (error.message === "UNAUTHORIZED_HUMAN") {
-      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401);
+      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401, ["LOGIN"]);
+    }
+    if (error.message === "IDEMPOTENCY_CONFLICT") {
+      return errorResponse(ErrorCodes.IDEMPOTENCY_CONFLICT, "Idempotency key already used for different operation.", undefined, undefined, 409, ["GENERATE_NEW_KEY"]);
     }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to create task");
   }
@@ -32,19 +68,20 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const limitInput = searchParams.get("limit");
-    const cursorInput = searchParams.get("cursor");
+    const validatedParams = PaginationSchema.safeParse(Object.fromEntries(searchParams));
 
-    const limit = limitInput ? parseInt(limitInput) : 20;
-    const cursor = cursorInput ? parseInt(cursorInput) : undefined;
-
-    if (isNaN(limit) || (cursorInput && isNaN(cursor as number))) {
-      return errorResponse(ErrorCodes.VALIDATION_ERROR, "Invalid query parameters", "Limit and cursor must be integers");
+    if (!validatedParams.success) {
+      return errorResponse(
+        ErrorCodes.VALIDATION_ERROR,
+        "Invalid pagination parameters",
+        "Limit must be 1-50, cursor must be a positive integer",
+        validatedParams.error.flatten().fieldErrors,
+        400,
+        ["BROWSE_TASKS"]
+      );
     }
 
-    if (limit > 50) {
-      return errorResponse(ErrorCodes.VALIDATION_ERROR, "Limit too large", "Maximum allowed limit is 50");
-    }
+    const { limit, cursor } = validatedParams.data;
 
     // If Authorization header is present, it must be valid for an agent
     const authHeader = req.headers.get("Authorization");
@@ -62,7 +99,8 @@ export async function GET(req: NextRequest) {
         "Agent API key is invalid.",
         "Verify the key or generate a new one.",
         undefined,
-        401
+        401,
+        ["GENERATE_NEW_KEY"]
       );
     }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to list tasks");

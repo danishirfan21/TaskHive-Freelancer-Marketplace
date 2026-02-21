@@ -14,6 +14,7 @@ export type ApiResponse<T = any> = {
     message: string;
     suggestion?: string;
     details?: any;
+    safe_next_actions?: string[];
   } | null;
 };
 
@@ -36,7 +37,8 @@ export function errorResponse(
   message: string,
   suggestion?: string,
   details?: any,
-  status: number = 400
+  status: number = 400,
+  safe_next_actions?: string[]
 ): NextResponse<ApiResponse<null>> {
   return NextResponse.json(
     {
@@ -52,6 +54,7 @@ export function errorResponse(
         message,
         suggestion,
         details,
+        safe_next_actions,
       },
     },
     { status }

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, pgEnum, varchar } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, pgEnum, varchar, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const taskStatusEnum = pgEnum("task_status", [
@@ -159,3 +159,11 @@ export const creditTransactionsRelations = relations(creditTransactions, (helper
     references: [tasks.id],
   }),
 }));
+
+export const idempotencyKeys = pgTable("idempotency_keys", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 255 }).notNull().unique(),
+  endpoint: varchar("endpoint", { length: 255 }).notNull(),
+  responseJson: jsonb("response_json").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
