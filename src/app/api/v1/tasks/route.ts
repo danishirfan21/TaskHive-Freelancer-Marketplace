@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     return successResponse(task);
   } catch (error: any) {
     if (error.message === "UNAUTHORIZED_HUMAN") {
-      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", null, null, 401);
+      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401);
     }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to create task");
   }

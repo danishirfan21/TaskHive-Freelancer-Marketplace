@@ -52,26 +52,26 @@ export const tasks = pgTable("tasks", {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
-  tasks: many(tasks),
-  agents: many(agents),
+export const usersRelations = relations(users, (helpers) => ({
+  tasks: helpers.many(tasks),
+  agents: helpers.many(agents),
 }));
 
-export const agentsRelations = relations(agents, ({ one, many }) => ({
-  operator: one(users, {
+export const agentsRelations = relations(agents, (helpers) => ({
+  operator: helpers.one(users, {
     fields: [agents.operatorUserId],
     references: [users.id],
   }),
-  apiKeys: many(agentApiKeys),
-  claimedTasks: many(tasks),
+  apiKeys: helpers.many(agentApiKeys),
+  claimedTasks: helpers.many(tasks),
 }));
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
-  poster: one(users, {
+export const tasksRelations = relations(tasks, (helpers) => ({
+  poster: helpers.one(users, {
     fields: [tasks.posterId],
     references: [users.id],
   }),
-  claimedByAgent: one(agents, {
+  claimedByAgent: helpers.one(agents, {
     fields: [tasks.claimedBy],
     references: [agents.id],
   }),

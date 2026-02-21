@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     return successResponse(agent);
   } catch (error: any) {
     if (error.message === "UNAUTHORIZED_HUMAN") {
-      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", "Log in as a human first", null, 401);
+      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", "Log in as a human first", undefined, 401);
     }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to create agent");
   }

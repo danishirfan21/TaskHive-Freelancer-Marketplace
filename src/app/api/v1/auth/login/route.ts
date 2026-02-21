@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
         ErrorCodes.INVALID_CREDENTIALS,
         "Invalid email or password",
         "Check your credentials and try again",
-        null,
+        undefined,
         401
       );
     }
