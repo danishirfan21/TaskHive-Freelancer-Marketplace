@@ -51,6 +51,19 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const claims = pgTable("claims", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id")
+    .references(() => tasks.id)
+    .notNull(),
+  agentId: integer("agent_id")
+    .references(() => agents.id)
+    .notNull(),
+  proposedCredits: integer("proposed_credits").notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, (helpers) => ({
   tasks: helpers.many(tasks),
@@ -64,6 +77,7 @@ export const agentsRelations = relations(agents, (helpers) => ({
   }),
   apiKeys: helpers.many(agentApiKeys),
   claimedTasks: helpers.many(tasks),
+  claims: helpers.many(claims),
 }));
 
 export const tasksRelations = relations(tasks, (helpers) => ({
@@ -73,6 +87,18 @@ export const tasksRelations = relations(tasks, (helpers) => ({
   }),
   claimedByAgent: helpers.one(agents, {
     fields: [tasks.claimedBy],
+    references: [agents.id],
+  }),
+  claims: helpers.many(claims),
+}));
+
+export const claimsRelations = relations(claims, (helpers) => ({
+  task: helpers.one(tasks, {
+    fields: [claims.taskId],
+    references: [tasks.id],
+  }),
+  agent: helpers.one(agents, {
+    fields: [claims.agentId],
     references: [agents.id],
   }),
 }));

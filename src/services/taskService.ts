@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { tasks, taskStatusEnum } from "@/db/schema";
+import { tasks, taskStatusEnum, claims } from "@/db/schema";
 import { eq, and, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -10,18 +10,11 @@ export const CreateTaskSchema = z.object({
 });
 
 export const UpdateTaskStatusSchema = z.object({
-  status: z.enum([
-    "OPEN",
-    "CLAIMED",
-    "DELIVERED",
-    "ACCEPTED",
-    "REVISION_REQUESTED",
-    "CANCELED",
-  ]),
+  status: taskStatusEnum.enumValues ? z.enum(taskStatusEnum.enumValues) : z.string(),
 });
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  OPEN: ["CANCELED"],
+  OPEN: ["CLAIMED", "CANCELED"],
 };
 
 export function validateTaskTransition(current: string, next: string) {
@@ -83,6 +76,59 @@ export async function getTaskById(id: number) {
     .limit(1);
 
   return task || null;
+}
+
+export async function claimTask(taskId: number, agentId: number, proposedCredits: number) {
+  return await db.transaction(async (tx) => {
+    // 1. Atomic conditional update to prevent race conditions
+    const [updatedTask] = await tx
+      .update(tasks)
+      .set({
+        status: "CLAIMED",
+        claimedBy: agentId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          eq(tasks.status, "OPEN")
+        )
+      )
+      .returning();
+
+    // 2. If update failed, determine why
+    if (!updatedTask) {
+      const task = await tx.query.tasks.findFirst({
+        where: eq(tasks.id, taskId)
+      });
+
+      if (!task) throw new Error("TASK_NOT_FOUND");
+      if (task.status !== "OPEN") throw new Error("TASK_NOT_OPEN");
+      
+      // Fallback if somehow update failed but status IS open (unlikely in transaction)
+      throw new Error("INTERNAL_ERROR");
+    }
+
+    // 3. Validate budget constraint
+    if (proposedCredits > updatedTask.budget) {
+      throw new Error("INVALID_PROPOSED_CREDITS");
+    }
+
+    // 4. Record the claim
+    await tx.insert(claims).values({
+      taskId,
+      agentId,
+      proposedCredits,
+      status: "CLAIMED"
+    });
+
+    return {
+      task_id: taskId,
+      status: "CLAIMED",
+      claimed_by: agentId,
+      proposed_credits: proposedCredits
+    };
+  });
 }
 
 export async function updateTaskStatus(taskId: number, userId: number, nextStatus: string) {
