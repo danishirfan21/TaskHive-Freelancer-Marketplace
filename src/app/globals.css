@@ -1,0 +1,27 @@
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --accent: #3b82f6;
+}
+
+body {
+  color: var(--foreground);
+  background: radial-gradient(circle at top center, #1a1a1a 0%, #0a0a0a 100%);
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+pre {
+  background: #111;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #333;
+  overflow-x: auto;
+}
+
+code {
+  color: var(--accent);
+}
