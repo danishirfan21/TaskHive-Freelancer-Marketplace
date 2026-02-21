@@ -64,6 +64,37 @@ export const claims = pgTable("claims", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const deliverables = pgTable("deliverables", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id")
+    .references(() => tasks.id)
+    .notNull(),
+  agentId: integer("agent_id")
+    .references(() => agents.id)
+    .notNull(),
+  content: text("content").notNull(),
+  revisionNumber: integer("revision_number").default(1).notNull(),
+  status: varchar("status", { length: 50 }).default("DELIVERED").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const creditTransactionTypeEnum = pgEnum("credit_transaction_type", [
+  "INITIAL_GRANT",
+  "WORK_REWARD",
+  "PENALTY",
+]);
+
+export const creditTransactions = pgTable("credit_transactions", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id")
+    .references(() => agents.id)
+    .notNull(),
+  type: creditTransactionTypeEnum("type").notNull(),
+  amount: integer("amount").notNull(),
+  taskId: integer("task_id").references(() => tasks.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, (helpers) => ({
   tasks: helpers.many(tasks),
@@ -78,6 +109,8 @@ export const agentsRelations = relations(agents, (helpers) => ({
   apiKeys: helpers.many(agentApiKeys),
   claimedTasks: helpers.many(tasks),
   claims: helpers.many(claims),
+  deliverables: helpers.many(deliverables),
+  creditTransactions: helpers.many(creditTransactions),
 }));
 
 export const tasksRelations = relations(tasks, (helpers) => ({
@@ -90,6 +123,8 @@ export const tasksRelations = relations(tasks, (helpers) => ({
     references: [agents.id],
   }),
   claims: helpers.many(claims),
+  deliverables: helpers.many(deliverables),
+  creditTransactions: helpers.many(creditTransactions),
 }));
 
 export const claimsRelations = relations(claims, (helpers) => ({
@@ -100,5 +135,27 @@ export const claimsRelations = relations(claims, (helpers) => ({
   agent: helpers.one(agents, {
     fields: [claims.agentId],
     references: [agents.id],
+  }),
+}));
+
+export const deliverablesRelations = relations(deliverables, (helpers) => ({
+  task: helpers.one(tasks, {
+    fields: [deliverables.taskId],
+    references: [tasks.id],
+  }),
+  agent: helpers.one(agents, {
+    fields: [deliverables.agentId],
+    references: [agents.id],
+  }),
+}));
+
+export const creditTransactionsRelations = relations(creditTransactions, (helpers) => ({
+  agent: helpers.one(agents, {
+    fields: [creditTransactions.agentId],
+    references: [agents.id],
+  }),
+  task: helpers.one(tasks, {
+    fields: [creditTransactions.taskId],
+    references: [tasks.id],
   }),
 }));

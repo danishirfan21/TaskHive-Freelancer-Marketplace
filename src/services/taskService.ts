@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { tasks, taskStatusEnum, claims } from "@/db/schema";
-import { eq, and, gt, sql } from "drizzle-orm";
+import { tasks, taskStatusEnum, claims, deliverables, creditTransactions } from "@/db/schema";
+import { eq, and, gt, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 
 export const CreateTaskSchema = z.object({
@@ -15,6 +15,8 @@ export const UpdateTaskStatusSchema = z.object({
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   OPEN: ["CLAIMED", "CANCELED"],
+  CLAIMED: ["DELIVERED"],
+  DELIVERED: ["ACCEPTED", "CLAIMED"], // CLAIMED here is for revision path
 };
 
 export function validateTaskTransition(current: string, next: string) {
@@ -80,7 +82,6 @@ export async function getTaskById(id: number) {
 
 export async function claimTask(taskId: number, agentId: number, proposedCredits: number) {
   return await db.transaction(async (tx) => {
-    // 1. Atomic conditional update to prevent race conditions
     const [updatedTask] = await tx
       .update(tasks)
       .set({
@@ -96,7 +97,6 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
       )
       .returning();
 
-    // 2. If update failed, determine why
     if (!updatedTask) {
       const task = await tx.query.tasks.findFirst({
         where: eq(tasks.id, taskId)
@@ -104,17 +104,13 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
 
       if (!task) throw new Error("TASK_NOT_FOUND");
       if (task.status !== "OPEN") throw new Error("TASK_NOT_OPEN");
-      
-      // Fallback if somehow update failed but status IS open (unlikely in transaction)
       throw new Error("INTERNAL_ERROR");
     }
 
-    // 3. Validate budget constraint
     if (proposedCredits > updatedTask.budget) {
       throw new Error("INVALID_PROPOSED_CREDITS");
     }
 
-    // 4. Record the claim
     await tx.insert(claims).values({
       taskId,
       agentId,
@@ -127,6 +123,124 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
       status: "CLAIMED",
       claimed_by: agentId,
       proposed_credits: proposedCredits
+    };
+  });
+}
+
+export async function deliverTask(taskId: number, agentId: number, content: string) {
+  return await db.transaction(async (tx) => {
+    const task = await tx.query.tasks.findFirst({
+      where: eq(tasks.id, taskId)
+    });
+
+    if (!task) throw new Error("TASK_NOT_FOUND");
+    if (task.status !== "CLAIMED") throw new Error("TASK_NOT_CLAIMED");
+    if (task.claimedBy !== agentId) throw new Error("NOT_TASK_ASSIGNEE");
+
+    const latestDeliverable = await tx.query.deliverables.findFirst({
+      where: eq(deliverables.taskId, taskId),
+      orderBy: desc(deliverables.revisionNumber)
+    });
+
+    const revisionNumber = latestDeliverable ? latestDeliverable.revisionNumber + 1 : 1;
+
+    const [deliverable] = await tx.insert(deliverables).values({
+      taskId,
+      agentId,
+      content,
+      revisionNumber,
+      status: "DELIVERED"
+    }).returning();
+
+    await tx.update(tasks)
+      .set({
+        status: "DELIVERED",
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
+    return {
+      task_id: taskId,
+      deliverable_id: deliverable.id,
+      status: "DELIVERED"
+    };
+  });
+}
+
+export async function requestRevision(taskId: number, posterId: number) {
+  return await db.transaction(async (tx) => {
+    const task = await tx.query.tasks.findFirst({
+      where: eq(tasks.id, taskId)
+    });
+
+    if (!task) throw new Error("TASK_NOT_FOUND");
+    if (task.posterId !== posterId) throw new Error("FORBIDDEN");
+    if (task.status !== "DELIVERED") throw new Error("TASK_NOT_DELIVERED");
+
+    await tx.update(tasks)
+      .set({
+        status: "CLAIMED",
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
+    await tx.update(deliverables)
+      .set({ status: "REVISION_REQUESTED" })
+      .where(and(
+        eq(deliverables.taskId, taskId),
+        eq(deliverables.status, "DELIVERED")
+      ));
+
+    return {
+      task_id: taskId,
+      status: "CLAIMED"
+    };
+  });
+}
+
+export async function acceptTask(taskId: number, posterId: number) {
+  return await db.transaction(async (tx) => {
+    const task = await tx.query.tasks.findFirst({
+      where: eq(tasks.id, taskId)
+    });
+
+    if (!task) throw new Error("TASK_NOT_FOUND");
+    if (task.posterId !== posterId) throw new Error("FORBIDDEN");
+    if (task.status === "ACCEPTED") throw new Error("TASK_ALREADY_ACCEPTED");
+    if (task.status !== "DELIVERED") throw new Error("TASK_NOT_DELIVERED");
+
+    const deliverable = await tx.query.deliverables.findFirst({
+      where: and(
+        eq(deliverables.taskId, taskId),
+        eq(deliverables.status, "DELIVERED")
+      ),
+      orderBy: desc(deliverables.revisionNumber)
+    });
+
+    if (!deliverable) throw new Error("DELIVERABLE_NOT_FOUND");
+
+    await tx.update(tasks)
+      .set({
+        status: "ACCEPTED",
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
+    await tx.update(deliverables)
+      .set({ status: "ACCEPTED" })
+      .where(eq(deliverables.id, deliverable.id));
+
+    await tx.insert(creditTransactions).values({
+      agentId: task.claimedBy!,
+      type: "WORK_REWARD",
+      amount: task.budget,
+      taskId: taskId
+    });
+
+    return {
+      task_id: taskId,
+      status: "ACCEPTED",
+      credited_amount: task.budget
     };
   });
 }
