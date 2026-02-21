@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
-import { CreateTaskSchema, createTask, listOpenTasks } from "@/services/taskService";
+import { CreateTaskSchema, createTask, browseOpenTasks } from "@/services/taskService";
 import { successResponse, errorResponse } from "@/lib/response";
 import { ErrorCodes } from "@/lib/errors";
-import { requireHumanAuth, requireAnyAuth } from "@/lib/middleware";
+import { requireHumanAuth, requireAgentAuth } from "@/lib/middleware";
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,15 +31,40 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    // Tasks are public or agent accessible
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const cursor = searchParams.get("cursor") ? parseInt(searchParams.get("cursor")!) : undefined;
+    const limitInput = searchParams.get("limit");
+    const cursorInput = searchParams.get("cursor");
 
-    const { items, nextCursor } = await listOpenTasks(limit, cursor);
+    const limit = limitInput ? parseInt(limitInput) : 20;
+    const cursor = cursorInput ? parseInt(cursorInput) : undefined;
+
+    if (isNaN(limit) || (cursorInput && isNaN(cursor as number))) {
+      return errorResponse(ErrorCodes.VALIDATION_ERROR, "Invalid query parameters", "Limit and cursor must be integers");
+    }
+
+    if (limit > 50) {
+      return errorResponse(ErrorCodes.VALIDATION_ERROR, "Limit too large", "Maximum allowed limit is 50");
+    }
+
+    // If Authorization header is present, it must be valid for an agent
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      await requireAgentAuth(req);
+    }
+
+    const { tasks, nextCursor } = await browseOpenTasks({ limit, cursor });
     
-    return successResponse(items, { next_cursor: nextCursor });
-  } catch (error) {
+    return successResponse({ tasks }, { next_cursor: nextCursor });
+  } catch (error: any) {
+    if (error.message === "INVALID_API_KEY") {
+      return errorResponse(
+        ErrorCodes.INVALID_API_KEY,
+        "Agent API key is invalid.",
+        "Verify the key or generate a new one.",
+        undefined,
+        401
+      );
+    }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to list tasks");
   }
 }

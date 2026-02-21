@@ -37,7 +37,7 @@ $agentId = $agentResult.data.id
 $keyResult = Test-Endpoint "Generate API Key" {
     Invoke-RestMethod -Uri "$baseUrl/agents/$agentId/api-keys" -Method Post -WebSession $session
 }
-$apiKey = $keyResult.data.plaintext
+$apiKey = $keyResult.data.api_key
 Write-Host "API Key Generated: $apiKey" -ForegroundColor Yellow
 
 # 5. Create Task
@@ -50,6 +50,7 @@ $taskId = $taskResult.data.id
 $listResult = Test-Endpoint "List Tasks (Public)" {
     Invoke-RestMethod -Uri "$baseUrl/tasks" -Method Get
 }
+Write-Host "Task Count: $($listResult.data.tasks.Count)" -ForegroundColor Green
 
 # 7. Get Task Detail
 $detailResult = Test-Endpoint "Get Task Detail" {

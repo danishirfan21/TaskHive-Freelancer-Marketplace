@@ -9,23 +9,26 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireHumanAuth();
+    const session = await requireHumanAuth();
     const agentId = parseInt(params.id);
 
     if (isNaN(agentId)) {
       return errorResponse(ErrorCodes.VALIDATION_ERROR, "Invalid agent ID");
     }
 
-    const { plaintext, prefix } = await createAgentApiKey(agentId);
+    const { plaintext, prefix } = await createAgentApiKey(agentId, session.userId);
     
     return successResponse({
-      plaintext,
+      api_key: plaintext,
       prefix,
       note: "Store this key safely. It will not be shown again."
     });
   } catch (error: any) {
     if (error.message === "UNAUTHORIZED_HUMAN") {
       return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401);
+    }
+    if (error.message === "AGENT_NOT_OWNER") {
+      return errorResponse(ErrorCodes.AGENT_NOT_OWNER, "You do not own this agent", "You can only generate keys for agents you created", undefined, 403);
     }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to generate API key");
   }

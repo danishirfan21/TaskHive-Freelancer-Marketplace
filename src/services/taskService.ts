@@ -43,9 +43,18 @@ export async function createTask(posterId: number, data: z.infer<typeof CreateTa
   return task;
 }
 
-export async function listOpenTasks(limit: number = 10, cursor?: number) {
+export async function browseOpenTasks(data: { limit?: number; cursor?: number }) {
+  const limit = Math.min(Math.max(data.limit || 20, 1), 50);
+  const cursor = data.cursor;
+
   const result = await db
-    .select()
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      description: tasks.description,
+      budget: tasks.budget,
+      createdAt: tasks.createdAt,
+    })
     .from(tasks)
     .where(
       and(
@@ -61,7 +70,7 @@ export async function listOpenTasks(limit: number = 10, cursor?: number) {
   const nextCursor = hasNextPage ? items[items.length - 1].id : null;
 
   return {
-    items,
+    tasks: items,
     nextCursor,
   };
 }

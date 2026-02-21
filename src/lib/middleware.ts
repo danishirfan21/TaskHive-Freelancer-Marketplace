@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/session";
-import { getVerifiedAgentId } from "@/services/agentService";
+import { getVerifiedAgent } from "@/services/agentService";
 import { NextRequest } from "next/server";
 
 export async function requireHumanAuth() {
@@ -13,17 +13,17 @@ export async function requireHumanAuth() {
 export async function requireAgentAuth(req: NextRequest) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new Error("UNAUTHORIZED_AGENT");
+    throw new Error("INVALID_API_KEY");
   }
 
   const key = authHeader.replace("Bearer ", "");
-  const agentId = await getVerifiedAgentId(key);
+  const agent = await getVerifiedAgent(key);
 
-  if (!agentId) {
-    throw new Error("UNAUTHORIZED_AGENT");
+  if (!agent) {
+    throw new Error("INVALID_API_KEY");
   }
 
-  return agentId;
+  return agent;
 }
 
 export async function requireAnyAuth(req: NextRequest) {
@@ -31,8 +31,8 @@ export async function requireAnyAuth(req: NextRequest) {
     return await requireHumanAuth();
   } catch {
     try {
-      const agentId = await requireAgentAuth(req);
-      return { agentId };
+      const agent = await requireAgentAuth(req);
+      return { agent };
     } catch {
       throw new Error("UNAUTHORIZED");
     }

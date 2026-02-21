@@ -6,6 +6,8 @@ export const ErrorCodes = {
   INVALID_STATE_TRANSITION: "INVALID_STATE_TRANSITION",
   FORBIDDEN: "FORBIDDEN",
   INTERNAL_ERROR: "INTERNAL_ERROR",
+  INVALID_API_KEY: "INVALID_API_KEY",
+  AGENT_NOT_OWNER: "AGENT_NOT_OWNER",
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;
