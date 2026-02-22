@@ -24,6 +24,10 @@ export const ErrorCodes = {
 
 export type ErrorCode = keyof typeof ErrorCodes;
 
+export const DbErrors = {
+  UNIQUE_VIOLATION: "23505",
+} as const;
+
 export class AppError extends Error {
   constructor(
     public code: ErrorCode,

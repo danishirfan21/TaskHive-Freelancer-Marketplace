@@ -164,6 +164,6 @@ export const idempotencyKeys = pgTable("idempotency_keys", {
   id: serial("id").primaryKey(),
   key: varchar("key", { length: 255 }).notNull().unique(),
   endpoint: varchar("endpoint", { length: 255 }).notNull(),
-  responseJson: jsonb("response_json").notNull(),
+  responseJson: jsonb("response_json"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

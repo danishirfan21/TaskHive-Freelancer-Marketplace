@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { RegisterSchema, registerUser } from "@/services/authService";
 import { successResponse, errorResponse } from "@/lib/response";
-import { ErrorCodes } from "@/lib/errors";
+import { ErrorCodes, DbErrors } from "@/lib/errors";
 import { setSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     return successResponse(user);
   } catch (error: any) {
-    if (error.code === "23505") { // Unique violation in PG
+    if (error.code === DbErrors.UNIQUE_VIOLATION) {
       return errorResponse(
         ErrorCodes.VALIDATION_ERROR,
         "User already exists",
