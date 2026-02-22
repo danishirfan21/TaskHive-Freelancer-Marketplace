@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { tasks, claims, deliverables, creditTransactions } from "@/db/schema";
-import { eq, and, gt, desc, asc } from "drizzle-orm";
+import { eq, and, gt, desc, asc, or, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { AppError, StateError, ValidationError, AuthError } from "@/lib/errors";
 import { assertTransition } from "@/domain/taskStateMachine";
@@ -27,6 +27,7 @@ export async function createTask(posterId: number, data: z.infer<typeof CreateTa
 export async function browseOpenTasks(data: { limit?: number; cursor?: number }) {
   const limit = Math.min(Math.max(data.limit || 20, 1), 50);
   const cursor = data.cursor;
+  const expiryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const result = await db
     .select({
@@ -39,7 +40,13 @@ export async function browseOpenTasks(data: { limit?: number; cursor?: number })
     .from(tasks)
     .where(
       and(
-        eq(tasks.status, "OPEN"),
+        or(
+          eq(tasks.status, "OPEN"),
+          and(
+            eq(tasks.status, "CLAIMED"),
+            lt(tasks.claimedAt, expiryThreshold)
+          )
+        ),
         cursor != null ? gt(tasks.id, cursor) : undefined
       )
     )
@@ -67,18 +74,27 @@ export async function getTaskById(id: number) {
 }
 
 export async function claimTask(taskId: number, agentId: number, proposedCredits: number) {
+  const expiryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
   return await db.transaction(async (tx) => {
     const [updatedTask] = await tx
       .update(tasks)
       .set({
         status: "CLAIMED",
         claimedBy: agentId,
+        claimedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(
         and(
           eq(tasks.id, taskId),
-          eq(tasks.status, "OPEN")
+          or(
+            eq(tasks.status, "OPEN"),
+            and(
+              eq(tasks.status, "CLAIMED"),
+              lt(tasks.claimedAt, expiryThreshold)
+            )
+          )
         )
       )
       .returning();
@@ -89,10 +105,7 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
       });
 
       if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
-      if (task.status !== "OPEN") {
-        throw new StateError("TASK_NOT_OPEN", `Task ${taskId} is no longer OPEN.`, "Refresh open tasks and select another.", { taskId }, 409, ["BROWSE_TASKS"]);
-      }
-      throw new AppError("INTERNAL_ERROR", "Failed to update task status");
+      throw new StateError("TASK_NOT_OPEN", `Task ${taskId} is no longer OPEN or its claim has not expired.`, "Refresh open tasks and select another.", { taskId }, 409, ["BROWSE_TASKS"]);
     }
 
     if (proposedCredits > updatedTask.budget) {
@@ -124,6 +137,15 @@ export async function deliverTask(taskId: number, agentId: number, content: stri
     if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
     if (task.status !== "CLAIMED") throw new StateError("TASK_NOT_CLAIMED", "Task is not in CLAIMED state.", "Wait for the task to be claimed.", undefined, 409, ["BROWSE_TASKS"]);
     if (task.claimedBy !== agentId) throw new AuthError("NOT_TASK_ASSIGNEE", "You are not the assignee of this task.", "Only the agent who claimed the task can deliver it.", 403, ["BROWSE_TASKS"]);
+
+    const CLAIM_TTL_MS = 24 * 60 * 60 * 1000;
+    if (task.claimedAt) {
+      const claimedAt = new Date(task.claimedAt);
+      const diff = Date.now() - claimedAt.getTime();
+      if (diff > CLAIM_TTL_MS) {
+        throw new StateError("CLAIM_EXPIRED", "Your claim on this task has expired.", "The 24-hour limit was exceeded. Re-claim the task if available.", undefined, 409, ["BROWSE_TASKS"]);
+      }
+    }
 
     const latestDeliverable = await tx.query.deliverables.findFirst({
       where: eq(deliverables.taskId, taskId),

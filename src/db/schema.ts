@@ -47,6 +47,7 @@ export const tasks = pgTable("tasks", {
   budget: integer("budget").notNull(),
   status: taskStatusEnum("status").default("OPEN").notNull(),
   claimedBy: integer("claimed_by").references(() => agents.id),
+  claimedAt: timestamp("claimed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
