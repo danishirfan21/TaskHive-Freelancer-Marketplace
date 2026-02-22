@@ -73,6 +73,7 @@ export const deliverables = pgTable("deliverables", {
     .references(() => agents.id)
     .notNull(),
   content: text("content").notNull(),
+  feedback: text("feedback"),
   revisionNumber: integer("revision_number").default(1).notNull(),
   status: varchar("status", { length: 50 }).default("DELIVERED").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

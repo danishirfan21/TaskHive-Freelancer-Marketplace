@@ -155,7 +155,7 @@ export async function deliverTask(taskId: number, agentId: number, content: stri
   });
 }
 
-export async function requestRevision(taskId: number, posterId: number) {
+export async function requestRevision(taskId: number, posterId: number, feedback?: string) {
   return await db.transaction(async (tx) => {
     const task = await tx.query.tasks.findFirst({
       where: eq(tasks.id, taskId)
@@ -173,7 +173,10 @@ export async function requestRevision(taskId: number, posterId: number) {
       .where(eq(tasks.id, taskId));
 
     await tx.update(deliverables)
-      .set({ status: "REVISION_REQUESTED" })
+      .set({ 
+        status: "REVISION_REQUESTED",
+        feedback: feedback || null
+      })
       .where(and(
         eq(deliverables.taskId, taskId),
         eq(deliverables.status, "DELIVERED")
