@@ -249,17 +249,30 @@ export async function acceptTask(taskId: number, posterId: number) {
       throw new StateError("TASK_NOT_CLAIMED", "Cannot accept a task that has no assignee.", undefined, undefined, 409);
     }
 
+    const claim = await tx.query.claims.findFirst({
+      where: and(
+        eq(claims.taskId, taskId),
+        eq(claims.agentId, task.claimedBy),
+        eq(claims.status, "CLAIMED")
+      ),
+      orderBy: desc(claims.createdAt)
+    });
+
+    if (!claim) {
+      throw new StateError("CLAIM_NOT_FOUND", "No active claim found for this task.", undefined, undefined, 409, ["BROWSE_TASKS"]);
+    }
+
     await tx.insert(creditTransactions).values({
       agentId: task.claimedBy,
       type: "WORK_REWARD",
-      amount: task.budget,
+      amount: claim.proposedCredits,
       taskId: taskId
     });
 
     return {
       task_id: taskId,
       status: "ACCEPTED",
-      credited_amount: task.budget
+      credited_amount: claim.proposedCredits
     };
   });
 }

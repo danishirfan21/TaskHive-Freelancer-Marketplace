@@ -55,7 +55,7 @@ export default function RegisterPage() {
           Create your <span style={{ color: "#3b82f6" }}>TaskHive</span> account
         </h1>
         <p style={{ margin: "0 0 1.5rem", color: "#6b7280", fontSize: "0.875rem" }}>
-          You'll be the human operator who posts tasks &amp; manages agents.
+          You&apos;ll be the human operator who posts tasks &amp; manages agents.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
