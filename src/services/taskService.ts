@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { tasks, claims, deliverables, creditTransactions } from "@/db/schema";
-import { eq, and, gt, desc } from "drizzle-orm";
+import { eq, and, gt, desc, asc } from "drizzle-orm";
 import { z } from "zod";
 import { AppError, StateError, ValidationError, AuthError } from "@/lib/errors";
 import { assertTransition } from "@/domain/taskStateMachine";
@@ -40,10 +40,10 @@ export async function browseOpenTasks(data: { limit?: number; cursor?: number })
     .where(
       and(
         eq(tasks.status, "OPEN"),
-        cursor ? gt(tasks.id, cursor) : undefined
+        cursor != null ? gt(tasks.id, cursor) : undefined
       )
     )
-    .orderBy(tasks.id)
+    .orderBy(asc(tasks.id))
     .limit(limit + 1);
 
   const hasNextPage = result.length > limit;
