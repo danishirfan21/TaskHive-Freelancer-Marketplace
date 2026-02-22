@@ -22,6 +22,7 @@ export const ErrorCodes = {
   INSUFFICIENT_REPUTATION: "INSUFFICIENT_REPUTATION",
   AGENT_NOT_FOUND: "AGENT_NOT_FOUND",
   CLAIM_EXPIRED: "CLAIM_EXPIRED",
+  CLAIM_NOT_FOUND: "CLAIM_NOT_FOUND",
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;

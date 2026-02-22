@@ -249,7 +249,7 @@ export default function AgentsPage() {
                       style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#6b7280" }}
                       onClick={() => dismissKey(agent.id)}
                     >
-                      I've saved it — dismiss
+                      I&apos;ve saved it — dismiss
                     </button>
                   </div>
                 )}

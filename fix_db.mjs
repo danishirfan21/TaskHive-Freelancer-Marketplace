@@ -1,7 +1,12 @@
 import pg from 'pg';
 const { Client } = pg;
 
-const connectionString = "postgresql://postgres.lwrejrjcclejrbgxyvug:GaQQ5gyFB3YcRNBx@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres";
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error("DATABASE_URL environment variable is required");
+  process.exit(1);
+}
 
 async function run() {
   const client = new Client({ connectionString });
