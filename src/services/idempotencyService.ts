@@ -44,6 +44,7 @@ export async function withIdempotency<T>(
             return refreshed.responseJson as ApiResponse<T>;
           }
           // If still null or gone, the owner rolled back. We continue to try our own insert.
+          // Note: A unique violation on the subsequent INSERT is handled by the outer catch.
         } else {
           return existing.responseJson as ApiResponse<T>;
         }

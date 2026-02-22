@@ -59,10 +59,6 @@ export async function PATCH(
       return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
     }
 
-    if (error.message === "UNAUTHORIZED_HUMAN") {
-      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401, ["LOGIN"]);
-    }
-    
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to update task");
   }
 }

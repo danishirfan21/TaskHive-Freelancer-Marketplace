@@ -8,7 +8,21 @@ import { z } from "zod";
 
 const PaginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
-  cursor: z.coerce.number().int().positive().optional(),
+  cursor: z.string().optional().transform((val, ctx) => {
+    if (!val) return undefined;
+    try {
+      const decoded = Buffer.from(val, "base64").toString("utf-8");
+      const id = parseInt(decoded);
+      if (isNaN(id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid cursor format" });
+        return z.NEVER;
+      }
+      return id;
+    } catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid cursor encoding" });
+      return z.NEVER;
+    }
+  }),
 });
 
 export async function POST(req: NextRequest) {
@@ -39,29 +53,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, "POST /api/v1/tasks", async () => {
+    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks`, async () => {
       const task = await createTask(session.userId, validated.data);
-      return {
-        meta: {
-          request_id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          version: "1.0"
-        },
-        status: "SUCCESS" as const,
-        data: task,
-        error: null
-      };
+      return successResponse(task).json();
     });
 
     return NextResponse.json(result);
   } catch (error: any) {
     if (error instanceof AppError) {
       return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
-    }
-    
-    // Legacy error message handling for remaining services
-    if (error.message === "UNAUTHORIZED_HUMAN") {
-      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401, ["LOGIN"]);
     }
     
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to create task");

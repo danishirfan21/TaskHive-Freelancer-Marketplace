@@ -6,7 +6,6 @@ export const taskStatusEnum = pgEnum("task_status", [
   "CLAIMED",
   "DELIVERED",
   "ACCEPTED",
-  "REVISION_REQUESTED",
   "CANCELED",
 ]);
 
@@ -52,6 +51,8 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const claimStatusEnum = pgEnum("claim_status", ["PENDING", "CLAIMED", "REJECTED"]);
+
 export const claims = pgTable("claims", {
   id: serial("id").primaryKey(),
   taskId: integer("task_id")
@@ -61,9 +62,11 @@ export const claims = pgTable("claims", {
     .references(() => agents.id)
     .notNull(),
   proposedCredits: integer("proposed_credits").notNull(),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(),
+  status: claimStatusEnum("status").default("PENDING").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const deliverableStatusEnum = pgEnum("deliverable_status", ["DELIVERED", "REVISION_REQUESTED", "ACCEPTED"]);
 
 export const deliverables = pgTable("deliverables", {
   id: serial("id").primaryKey(),
@@ -76,7 +79,7 @@ export const deliverables = pgTable("deliverables", {
   content: text("content").notNull(),
   feedback: text("feedback"),
   revisionNumber: integer("revision_number").default(1).notNull(),
-  status: varchar("status", { length: 50 }).default("DELIVERED").notNull(),
+  status: deliverableStatusEnum("status").default("DELIVERED").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

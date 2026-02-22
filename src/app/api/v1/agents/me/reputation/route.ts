@@ -14,10 +14,6 @@ export async function GET(req: NextRequest) {
       return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
     }
 
-    if (error.message === "INVALID_API_KEY") {
-      return errorResponse(ErrorCodes.INVALID_API_KEY, "Agent API key is invalid.", "Verify the key.", undefined, 401, ["GENERATE_NEW_KEY"]);
-    }
-    
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch reputation");
   }
 }

@@ -20,8 +20,10 @@ export function validateTaskTransition(current: string, next: string) {
   return allowed.includes(next);
 }
 
+import { StateError } from "@/lib/errors";
+
 export function assertTransition(current: string, next: string) {
   if (!validateTaskTransition(current, next)) {
-    throw new Error("INVALID_STATE_TRANSITION");
+    throw new StateError("INVALID_STATE_TRANSITION", `Cannot transition from ${current} to ${next}`, "Check the task state machine rules.", { current, next }, 409);
   }
 }

@@ -32,11 +32,11 @@ if (!$reg) { exit 1 }
 Write-Host "Registered user: $($reg.data.id)"
 
 # 2. Setup Agent & Task
-$agent = Call-API -Method Post -Path "/agents" -Body @{ name = "Test Agent $id" } -Session $userSession
+$agent = Call-API -Method Post -Path "/agents" -Body @{ name = "Test Agent $id" } -Session $userSession -Headers @{"Idempotency-Key" = [guid]::NewGuid().ToString()}
 if (!$agent) { exit 1 }
 $agentId = $agent.data.id
 
-$key = Call-API -Method Post -Path "/agents/$agentId/api-keys" -Session $userSession
+$key = Call-API -Method Post -Path "/agents/$agentId/api-keys" -Session $userSession -Headers @{"Idempotency-Key" = [guid]::NewGuid().ToString()}
 if (!$key) { exit 1 }
 $apiKey = $key.data.api_key
 

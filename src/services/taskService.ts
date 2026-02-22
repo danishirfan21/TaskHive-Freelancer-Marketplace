@@ -55,7 +55,8 @@ export async function browseOpenTasks(data: { limit?: number; cursor?: number })
 
   const hasNextPage = result.length > limit;
   const items = hasNextPage ? result.slice(0, limit) : result;
-  const nextCursor = hasNextPage ? items[items.length - 1].id : null;
+  const nextCursorId = hasNextPage ? items[items.length - 1].id : null;
+  const nextCursor = nextCursorId ? Buffer.from(nextCursorId.toString()).toString("base64") : null;
 
   return {
     tasks: items,
@@ -190,6 +191,7 @@ export async function requestRevision(taskId: number, posterId: number, feedback
     await tx.update(tasks)
       .set({
         status: "CLAIMED",
+        claimedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, taskId));
@@ -243,8 +245,12 @@ export async function acceptTask(taskId: number, posterId: number) {
       .set({ status: "ACCEPTED" })
       .where(eq(deliverables.id, deliverable.id));
 
+    if (!task.claimedBy) {
+      throw new StateError("TASK_NOT_CLAIMED", "Cannot accept a task that has no assignee.", undefined, undefined, 409);
+    }
+
     await tx.insert(creditTransactions).values({
-      agentId: task.claimedBy!,
+      agentId: task.claimedBy,
       type: "WORK_REWARD",
       amount: task.budget,
       taskId: taskId
@@ -259,6 +265,9 @@ export async function acceptTask(taskId: number, posterId: number) {
 }
 
 export async function updateTaskStatus(taskId: number, userId: number, nextStatus: string) {
+  if (nextStatus !== "CANCELED") {
+    throw new ValidationError("INVALID_STATE_TRANSITION", "Direct status updates are only allowed for CANCELED.", "Use specialized endpoints for other transitions.");
+  }
   const task = await getTaskById(taskId);
   if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
   if (task.posterId !== userId) throw new AuthError("FORBIDDEN", "Only the poster can update this task.", undefined, 403);

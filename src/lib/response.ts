@@ -5,7 +5,7 @@ export type ApiResponse<T = any> = {
     request_id: string;
     timestamp: string;
     version: string;
-    next_cursor?: number | null;
+    next_cursor?: number | string | null;
   };
   status: "SUCCESS" | "ERROR";
   data: T | null;
@@ -18,7 +18,7 @@ export type ApiResponse<T = any> = {
   } | null;
 };
 
-export function successResponse<T>(data: T, meta: { next_cursor?: number | null } = {}): NextResponse<ApiResponse<T>> {
+export function successResponse<T>(data: T, meta: { next_cursor?: number | string | null } = {}): NextResponse<ApiResponse<T>> {
   return NextResponse.json({
     meta: {
       request_id: crypto.randomUUID(),

@@ -48,28 +48,15 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `POST /api/v1/tasks/${taskId}/deliver`, async () => {
+    const result = await withIdempotency(idempotencyKey, `agent:${agent.id}:POST /api/v1/tasks/${taskId}/deliver`, async () => {
       const data = await deliverTask(taskId, agent.id, validated.data.content);
-      return {
-        meta: {
-          request_id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          version: "1.0"
-        },
-        status: "SUCCESS" as const,
-        data,
-        error: null
-      };
+      return successResponse(data).json();
     });
 
     return NextResponse.json(result);
   } catch (error: any) {
     if (error instanceof AppError) {
       return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
-    }
-    
-    if (error.message === "INVALID_API_KEY") {
-      return errorResponse(ErrorCodes.INVALID_API_KEY, "Agent API key is invalid.", "Verify the key.", undefined, 401, ["GENERATE_NEW_KEY"]);
     }
     
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to deliver task");

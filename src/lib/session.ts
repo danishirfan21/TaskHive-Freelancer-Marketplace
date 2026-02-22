@@ -4,6 +4,10 @@ import { createHmac, timingSafeEqual } from "crypto";
 const SESSION_COOKIE_NAME = "taskhive_session";
 const SECRET = process.env.SESSION_SECRET || "fallback-secret-at-least-32-chars-long";
 
+if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET must be set in production");
+}
+
 export type SessionData = {
   userId: number;
 };
@@ -32,7 +36,11 @@ export async function getSession(): Promise<SessionData | null> {
 
   try {
     const decoded = Buffer.from(cookie.value, "base64").toString("utf-8");
-    const [payload, signature] = decoded.split(".");
+    const lastDotIndex = decoded.lastIndexOf(".");
+    if (lastDotIndex === -1) return null;
+
+    const payload = decoded.slice(0, lastDotIndex);
+    const signature = decoded.slice(lastDotIndex + 1);
     
     const expectedSignature = sign(payload);
     if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {

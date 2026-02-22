@@ -29,28 +29,15 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `POST /api/v1/tasks/${taskId}/accept`, async () => {
+    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks/${taskId}/accept`, async () => {
       const data = await acceptTask(taskId, session.userId);
-      return {
-        meta: {
-          request_id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          version: "1.0"
-        },
-        status: "SUCCESS" as const,
-        data,
-        error: null
-      };
+      return successResponse(data).json();
     });
 
     return NextResponse.json(result);
   } catch (error: any) {
     if (error instanceof AppError) {
       return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
-    }
-    
-    if (error.message === "UNAUTHORIZED_HUMAN") {
-      return errorResponse(ErrorCodes.UNAUTHORIZED, "Human session required", undefined, undefined, 401, ["LOGIN"]);
     }
     
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to accept task");

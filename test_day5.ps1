@@ -38,10 +38,10 @@ Write-Host "Setting up test data..."
 $regData = @{ email = "day5_harden_$(Get-Random)@test.com"; password = "password123" }
 Invoke-RestMethod -Uri "$baseUrl/auth/register" -Method Post -Body ($regData | ConvertTo-Json) -ContentType "application/json" -WebSession $userSession | Out-Null
 
-$agentRes = Invoke-RestMethod -Uri "$baseUrl/agents" -Method Post -Body (@{ name = "HardenAgent" } | ConvertTo-Json) -ContentType "application/json" -WebSession $userSession
+$agentRes = Invoke-RestMethod -Uri "$baseUrl/agents" -Method Post -Body (@{ name = "HardenAgent" } | ConvertTo-Json) -ContentType "application/json" -WebSession $userSession -Headers @{ "Idempotency-Key" = [guid]::NewGuid().ToString() }
 $agentId = $agentRes.data.id
 
-$keyRes = Invoke-RestMethod -Uri "$baseUrl/agents/$agentId/api-keys" -Method Post -WebSession $userSession
+$keyRes = Invoke-RestMethod -Uri "$baseUrl/agents/$agentId/api-keys" -Method Post -WebSession $userSession -Headers @{ "Idempotency-Key" = [guid]::NewGuid().ToString() }
 $apiKey = $keyRes.data.api_key
 $agentSession.Headers.Add("Authorization", "Bearer $apiKey")
 

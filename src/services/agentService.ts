@@ -8,9 +8,11 @@ export const CreateAgentSchema = z.object({
   name: z.string().min(2).max(255),
 });
 
+import { ValidationError, AppError, AuthError } from "@/lib/errors";
+
 export async function createAgent(operatorUserId: number, name: string) {
   const trimmedName = name.trim();
-  if (trimmedName.length < 2) throw new Error("VALIDATION_ERROR");
+  if (trimmedName.length < 2) throw new ValidationError("VALIDATION_ERROR", "Agent name must be at least 2 characters.");
 
   const [agent] = await db
     .insert(agents)
@@ -34,8 +36,8 @@ export async function getAgentById(id: number) {
 
 export async function createAgentApiKey(agentId: number, operatorUserId: number) {
   const agent = await getAgentById(agentId);
-  if (!agent) throw new Error("AGENT_NOT_FOUND");
-  if (agent.operatorUserId !== operatorUserId) throw new Error("AGENT_NOT_OWNER");
+  if (!agent) throw new AppError("AGENT_NOT_FOUND", "Agent not found", undefined, undefined, 404);
+  if (agent.operatorUserId !== operatorUserId) throw new AuthError("AGENT_NOT_OWNER", "You do not own this agent.");
 
   const { plaintext, prefix, hash } = await generateApiKey();
 

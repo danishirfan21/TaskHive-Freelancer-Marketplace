@@ -48,29 +48,15 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `POST /api/v1/tasks/${taskId}/claim`, async () => {
+    const result = await withIdempotency(idempotencyKey, `agent:${agent.id}:POST /api/v1/tasks/${taskId}/claim`, async () => {
       const data = await claimTask(taskId, agent.id, validated.data.proposed_credits);
-      return {
-        meta: {
-          request_id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          version: "1.0"
-        },
-        status: "SUCCESS" as const,
-        data,
-        error: null
-      };
+      return successResponse(data).json();
     });
 
     return NextResponse.json(result);
   } catch (error: any) {
     if (error instanceof AppError) {
       return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
-    }
-    
-    // Auth specific errors from middleware
-    if (error.message === "INVALID_API_KEY") {
-      return errorResponse(ErrorCodes.INVALID_API_KEY, "Agent API key is invalid.", "Verify the key or generate a new one.", undefined, 401, ["GENERATE_NEW_KEY"]);
     }
     
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to claim task");
