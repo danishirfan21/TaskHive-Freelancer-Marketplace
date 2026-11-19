@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { RegisterSchema, registerUser } from "@/services/authService";
 import { successResponse, errorResponse } from "@/lib/response";
-import { ErrorCodes, DbErrors } from "@/lib/errors";
+import { AppError, ErrorCodes, DbErrors } from "@/lib/errors";
 import { setSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
+    rateLimit(`register:${clientIp(req)}`, 5, 60_000);
     const body = await req.json().catch(() => ({}));
     const validated = RegisterSchema.safeParse(body);
 
@@ -23,6 +25,9 @@ export async function POST(req: NextRequest) {
 
     return successResponse(user);
   } catch (error: any) {
+    if (error instanceof AppError) {
+      return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
+    }
     if (error.code === DbErrors.UNIQUE_VIOLATION) {
       return errorResponse(
         ErrorCodes.VALIDATION_ERROR,

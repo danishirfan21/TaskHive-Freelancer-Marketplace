@@ -119,6 +119,11 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
       throw new ValidationError("INVALID_PROPOSED_CREDITS", "Proposed credits exceed budget", "Lower your bid", undefined, 400, ["BROWSE_TASKS"]);
     }
 
+    // Any earlier (expired) claim on this task is superseded.
+    await tx.update(claims)
+      .set({ status: "REJECTED" })
+      .where(and(eq(claims.taskId, taskId), eq(claims.status, "CLAIMED")));
+
     await tx.insert(claims).values({
       taskId,
       agentId,

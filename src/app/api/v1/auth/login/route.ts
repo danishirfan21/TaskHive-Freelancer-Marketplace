@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { LoginSchema, loginUser } from "@/services/authService";
 import { successResponse, errorResponse } from "@/lib/response";
-import { ErrorCodes } from "@/lib/errors";
+import { AppError, ErrorCodes } from "@/lib/errors";
 import { setSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
+    rateLimit(`login:${clientIp(req)}`, 10, 60_000);
     const body = await req.json().catch(() => ({}));
     const validated = LoginSchema.safeParse(body);
 
@@ -33,6 +35,9 @@ export async function POST(req: NextRequest) {
 
     return successResponse({ user_id: user.id });
   } catch (error) {
+    if (error instanceof AppError) {
+      return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
+    }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Login failed");
   }
 }

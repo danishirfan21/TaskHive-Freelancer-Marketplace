@@ -4,8 +4,8 @@ import { createHmac, timingSafeEqual } from "crypto";
 const SESSION_COOKIE_NAME = "taskhive_session";
 const SECRET = process.env.SESSION_SECRET || "fallback-secret-at-least-32-chars-long";
 
-if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
-  throw new Error("SESSION_SECRET must be set in production");
+if (process.env.NODE_ENV !== "development" && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)) {
+  throw new Error("SESSION_SECRET must be set (min 32 chars) outside development");
 }
 
 export type SessionData = {

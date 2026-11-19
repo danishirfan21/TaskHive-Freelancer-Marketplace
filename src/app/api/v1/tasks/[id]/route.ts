@@ -2,13 +2,14 @@ import { NextRequest } from "next/server";
 import { getTaskById, updateTaskStatus } from "@/services/taskService";
 import { successResponse, errorResponse } from "@/lib/response";
 import { ErrorCodes, AppError } from "@/lib/errors";
-import { requireHumanAuth } from "@/lib/middleware";
+import { requireHumanAuth, requireAnyAuth } from "@/lib/middleware";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireAnyAuth(req);
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
       return errorResponse(ErrorCodes.VALIDATION_ERROR, "Invalid task ID");

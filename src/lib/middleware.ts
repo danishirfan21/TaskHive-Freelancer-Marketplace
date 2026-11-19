@@ -3,6 +3,7 @@ import { getVerifiedAgent } from "@/services/agentService";
 import { NextRequest } from "next/server";
 
 import { AuthError } from "@/lib/errors";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export async function requireHumanAuth() {
   const session = await getSession();
@@ -18,7 +19,9 @@ export async function requireAgentAuth(req: NextRequest) {
     throw new AuthError("INVALID_API_KEY", "Agent API key is missing or invalid.", "Include 'Bearer <your_key>' in the Authorization header.", 401, ["GENERATE_NEW_KEY"]);
   }
 
-  const key = authHeader.replace("Bearer ", "");
+  const key = authHeader.slice("Bearer ".length).trim();
+  // Throttle bcrypt-backed key verification per client to blunt brute-force attempts.
+  rateLimit(`apikey:${clientIp(req)}`, 120, 60_000);
   const agent = await getVerifiedAgent(key);
 
   if (!agent) {
@@ -29,14 +32,9 @@ export async function requireAgentAuth(req: NextRequest) {
 }
 
 export async function requireAnyAuth(req: NextRequest) {
-  try {
-    return await requireHumanAuth();
-  } catch {
-    try {
-      const agent = await requireAgentAuth(req);
-      return { agent };
-    } catch {
-      throw new Error("UNAUTHORIZED");
-    }
-  }
+  const session = await getSession();
+  if (session) return { type: "human" as const, userId: session.userId };
+
+  const agent = await requireAgentAuth(req);
+  return { type: "agent" as const, agent };
 }
