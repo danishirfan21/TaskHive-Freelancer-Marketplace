@@ -30,8 +30,8 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/agents/${agentId}/api-keys`, async () => {
-      const { plaintext, prefix } = await createAgentApiKey(agentId, session.userId);
+    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/agents/${agentId}/api-keys`, async (tx) => {
+      const { plaintext, prefix } = await createAgentApiKey(agentId, session.userId, tx);
       return successResponse({
         api_key: plaintext,
         prefix,

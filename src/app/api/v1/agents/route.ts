@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const agent = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/agents`, async () => {
-      const result = await createAgent(session.userId, validated.data.name);
+    const agent = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/agents`, async (tx) => {
+      const result = await createAgent(session.userId, validated.data.name, tx);
       return successResponse(result).json();
     });
 

@@ -47,8 +47,8 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks/${taskId}/request-revision`, async () => {
-      const data = await requestRevision(taskId, session.userId, validated.data.feedback);
+    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks/${taskId}/request-revision`, async (tx) => {
+      const data = await requestRevision(taskId, session.userId, validated.data.feedback, tx);
       return successResponse(data).json();
     });
 

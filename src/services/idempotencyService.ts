@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, DbTx } from "@/db";
 import { idempotencyKeys } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { ApiResponse } from "@/lib/response";
@@ -14,11 +14,13 @@ import { createHash } from "crypto";
  * 2. ONLY ONE winner proceeds to execute the handler.
  * 3. Losers wake up after the winner commits and replay the stored responseJson.
  * 4. If the winner fails (throws), the transaction rolls back, and a loser wins the next round.
+ * 5. The handler receives the transaction and MUST perform its writes through it, so the handler's
+ *    effects and the stored response commit (or roll back) atomically.
  */
 export async function withIdempotency<T>(
   rawKey: string,
   endpoint: string,
-  handler: () => Promise<ApiResponse<T>>
+  handler: (tx: DbTx) => Promise<ApiResponse<T>>
 ): Promise<ApiResponse<T>> {
   // `endpoint` includes the caller identity (user:/agent:), so scoping the stored key
   // by it prevents one caller from replaying another caller's cached response.
@@ -64,7 +66,7 @@ ${rawKey}`).digest("hex");
       });
 
       // 3. Execution (inside the transaction to ensure rollback on failure)
-      const response = await handler();
+      const response = await handler(tx);
 
       // 4. Update with final result
       await tx.update(idempotencyKeys)

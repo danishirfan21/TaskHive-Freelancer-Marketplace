@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, DbExecutor } from "@/db";
 import { tasks, claims, deliverables, creditTransactions, agents } from "@/db/schema";
 import { eq, and, gt, desc, asc, or, lt, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -11,8 +11,8 @@ export const CreateTaskSchema = z.object({
   budget: z.number().int().positive(),
 });
 
-export async function createTask(posterId: number, data: z.infer<typeof CreateTaskSchema>) {
-  const [task] = await db
+export async function createTask(posterId: number, data: z.infer<typeof CreateTaskSchema>, executor: DbExecutor = db) {
+  const [task] = await executor
     .insert(tasks)
     .values({
       posterId,
@@ -74,10 +74,10 @@ export async function getTaskById(id: number) {
   return task || null;
 }
 
-export async function claimTask(taskId: number, agentId: number, proposedCredits: number) {
+export async function claimTask(taskId: number, agentId: number, proposedCredits: number, executor: DbExecutor = db) {
   const expiryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  return await db.transaction(async (tx) => {
+  return await executor.transaction(async (tx) => {
     const [updatedTask] = await tx
       .update(tasks)
       .set({
@@ -140,8 +140,8 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
   });
 }
 
-export async function deliverTask(taskId: number, agentId: number, content: string) {
-  return await db.transaction(async (tx) => {
+export async function deliverTask(taskId: number, agentId: number, content: string, executor: DbExecutor = db) {
+  return await executor.transaction(async (tx) => {
     const task = await tx.query.tasks.findFirst({
       where: eq(tasks.id, taskId)
     });
@@ -194,8 +194,8 @@ export async function deliverTask(taskId: number, agentId: number, content: stri
   });
 }
 
-export async function requestRevision(taskId: number, posterId: number, feedback?: string) {
-  return await db.transaction(async (tx) => {
+export async function requestRevision(taskId: number, posterId: number, feedback?: string, executor: DbExecutor = db) {
+  return await executor.transaction(async (tx) => {
     const task = await tx.query.tasks.findFirst({
       where: eq(tasks.id, taskId)
     });
@@ -234,8 +234,8 @@ export async function requestRevision(taskId: number, posterId: number, feedback
   });
 }
 
-export async function acceptTask(taskId: number, posterId: number) {
-  return await db.transaction(async (tx) => {
+export async function acceptTask(taskId: number, posterId: number, executor: DbExecutor = db) {
+  return await executor.transaction(async (tx) => {
     const task = await tx.query.tasks.findFirst({
       where: eq(tasks.id, taskId)
     });

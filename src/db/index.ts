@@ -7,3 +7,8 @@ const pool = new Pool({
 });
 
 export const db = drizzle(pool, { schema });
+
+/** A transaction handle, as passed to the callback of `db.transaction`. */
+export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** Either the pool-backed db or an open transaction; services accept both. */
+export type DbExecutor = typeof db | DbTx;

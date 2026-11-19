@@ -29,8 +29,8 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks/${taskId}/accept`, async () => {
-      const data = await acceptTask(taskId, session.userId);
+    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks/${taskId}/accept`, async (tx) => {
+      const data = await acceptTask(taskId, session.userId, tx);
       return successResponse(data).json();
     });
 

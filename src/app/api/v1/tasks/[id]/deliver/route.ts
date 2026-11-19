@@ -48,8 +48,8 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `agent:${agent.id}:POST /api/v1/tasks/${taskId}/deliver`, async () => {
-      const data = await deliverTask(taskId, agent.id, validated.data.content);
+    const result = await withIdempotency(idempotencyKey, `agent:${agent.id}:POST /api/v1/tasks/${taskId}/deliver`, async (tx) => {
+      const data = await deliverTask(taskId, agent.id, validated.data.content, tx);
       return successResponse(data).json();
     });
 

@@ -48,8 +48,8 @@ export async function POST(
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `agent:${agent.id}:POST /api/v1/tasks/${taskId}/claim`, async () => {
-      const data = await claimTask(taskId, agent.id, validated.data.proposed_credits);
+    const result = await withIdempotency(idempotencyKey, `agent:${agent.id}:POST /api/v1/tasks/${taskId}/claim`, async (tx) => {
+      const data = await claimTask(taskId, agent.id, validated.data.proposed_credits, tx);
       return successResponse(data).json();
     });
 

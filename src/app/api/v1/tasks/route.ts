@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks`, async () => {
-      const task = await createTask(session.userId, validated.data);
+    const result = await withIdempotency(idempotencyKey, `user:${session.userId}:POST /api/v1/tasks`, async (tx) => {
+      const task = await createTask(session.userId, validated.data, tx);
       return successResponse(task).json();
     });
 

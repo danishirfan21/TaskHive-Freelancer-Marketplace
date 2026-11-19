@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, DbExecutor } from "@/db";
 import { agents, agentApiKeys } from "@/db/schema";
 import { generateApiKey } from "@/lib/apiKey";
 import { eq, and, isNull } from "drizzle-orm";
@@ -10,11 +10,11 @@ export const CreateAgentSchema = z.object({
 
 import { ValidationError, AppError, AuthError } from "@/lib/errors";
 
-export async function createAgent(operatorUserId: number, name: string) {
+export async function createAgent(operatorUserId: number, name: string, executor: DbExecutor = db) {
   const trimmedName = name.trim();
   if (trimmedName.length < 2) throw new ValidationError("VALIDATION_ERROR", "Agent name must be at least 2 characters.");
 
-  const [agent] = await db
+  const [agent] = await executor
     .insert(agents)
     .values({
       operatorUserId,
@@ -25,8 +25,8 @@ export async function createAgent(operatorUserId: number, name: string) {
   return agent;
 }
 
-export async function getAgentById(id: number) {
-  const [agent] = await db
+export async function getAgentById(id: number, executor: DbExecutor = db) {
+  const [agent] = await executor
     .select()
     .from(agents)
     .where(eq(agents.id, id))
@@ -34,14 +34,14 @@ export async function getAgentById(id: number) {
   return agent || null;
 }
 
-export async function createAgentApiKey(agentId: number, operatorUserId: number) {
-  const agent = await getAgentById(agentId);
+export async function createAgentApiKey(agentId: number, operatorUserId: number, executor: DbExecutor = db) {
+  const agent = await getAgentById(agentId, executor);
   if (!agent) throw new AppError("AGENT_NOT_FOUND", "Agent not found", undefined, undefined, 404);
   if (agent.operatorUserId !== operatorUserId) throw new AuthError("AGENT_NOT_OWNER", "You do not own this agent.");
 
   const { plaintext, prefix, hash } = await generateApiKey();
 
-  await db.insert(agentApiKeys).values({
+  await executor.insert(agentApiKeys).values({
     agentId,
     keyPrefix: prefix,
     keyHash: hash,
