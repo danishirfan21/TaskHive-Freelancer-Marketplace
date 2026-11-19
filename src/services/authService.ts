@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -20,7 +20,7 @@ export async function registerUser(data: z.infer<typeof RegisterSchema>) {
   const [user] = await db
     .insert(users)
     .values({
-      email: data.email,
+      email: data.email.trim().toLowerCase(),
       passwordHash,
     })
     .returning({
@@ -35,7 +35,7 @@ export async function loginUser(data: z.infer<typeof LoginSchema>) {
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.email, data.email))
+    .where(sql`lower(${users.email}) = ${data.email.trim().toLowerCase()}`)
     .limit(1);
 
   if (!user) return null;

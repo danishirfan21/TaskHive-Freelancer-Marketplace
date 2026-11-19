@@ -3,6 +3,7 @@ import { idempotencyKeys } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { ApiResponse } from "@/lib/response";
 import { IdempotencyError, DbErrors } from "@/lib/errors";
+import { createHash } from "crypto";
 
 /**
  * Race-condition safe idempotency wrapper.
@@ -15,10 +16,14 @@ import { IdempotencyError, DbErrors } from "@/lib/errors";
  * 4. If the winner fails (throws), the transaction rolls back, and a loser wins the next round.
  */
 export async function withIdempotency<T>(
-  key: string,
+  rawKey: string,
   endpoint: string,
   handler: () => Promise<ApiResponse<T>>
 ): Promise<ApiResponse<T>> {
+  // `endpoint` includes the caller identity (user:/agent:), so scoping the stored key
+  // by it prevents one caller from replaying another caller's cached response.
+  const key = createHash("sha256").update(`${endpoint}
+${rawKey}`).digest("hex");
   try {
     return await db.transaction(async (tx) => {
       // 1. Check for existing (completed) record

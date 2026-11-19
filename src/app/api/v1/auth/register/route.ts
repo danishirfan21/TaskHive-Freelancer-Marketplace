@@ -6,7 +6,7 @@ import { setSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const validated = RegisterSchema.safeParse(body);
 
     if (!validated.success) {

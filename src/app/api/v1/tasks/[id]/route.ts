@@ -35,8 +35,8 @@ export async function PATCH(
   try {
     const session = await requireHumanAuth();
     const taskId = parseInt(params.id);
-    const body = await req.json();
-    
+    const body = await req.json().catch(() => ({}));
+
     if (isNaN(taskId)) {
       return errorResponse(ErrorCodes.VALIDATION_ERROR, "Invalid task ID");
     }

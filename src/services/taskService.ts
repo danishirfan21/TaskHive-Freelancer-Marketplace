@@ -163,12 +163,17 @@ export async function deliverTask(taskId: number, agentId: number, content: stri
       status: "DELIVERED"
     }).returning();
 
-    await tx.update(tasks)
+    const delivered = await tx.update(tasks)
       .set({
         status: "DELIVERED",
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(and(eq(tasks.id, taskId), eq(tasks.status, "CLAIMED"), eq(tasks.claimedBy, agentId)))
+      .returning({ id: tasks.id });
+
+    if (delivered.length === 0) {
+      throw new StateError("TASK_NOT_CLAIMED", "Task is no longer in CLAIMED state.", "Refresh the task and retry.", undefined, 409, ["BROWSE_TASKS"]);
+    }
 
     return {
       task_id: taskId,
@@ -188,13 +193,18 @@ export async function requestRevision(taskId: number, posterId: number, feedback
     if (task.posterId !== posterId) throw new AuthError("FORBIDDEN", "Only the task poster can request revisions.", undefined, 403);
     if (task.status !== "DELIVERED") throw new StateError("TASK_NOT_DELIVERED", "Task must be in DELIVERED state to request revision.", undefined, undefined, 409);
 
-    await tx.update(tasks)
+    const revised = await tx.update(tasks)
       .set({
         status: "CLAIMED",
         claimedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(and(eq(tasks.id, taskId), eq(tasks.status, "DELIVERED")))
+      .returning({ id: tasks.id });
+
+    if (revised.length === 0) {
+      throw new StateError("TASK_NOT_DELIVERED", "Task must be in DELIVERED state to request revision.", undefined, undefined, 409);
+    }
 
     await tx.update(deliverables)
       .set({ 
@@ -234,20 +244,26 @@ export async function acceptTask(taskId: number, posterId: number) {
 
     if (!deliverable) throw new StateError("DELIVERABLE_NOT_FOUND", "No deliverable found to accept.", undefined, undefined, 409, ["BROWSE_TASKS"]);
 
-    await tx.update(tasks)
+    if (!task.claimedBy) {
+      throw new StateError("TASK_NOT_CLAIMED", "Cannot accept a task that has no assignee.", undefined, undefined, 409);
+    }
+
+    // Conditional update guards against concurrent accepts double-crediting the agent.
+    const accepted = await tx.update(tasks)
       .set({
         status: "ACCEPTED",
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(and(eq(tasks.id, taskId), eq(tasks.status, "DELIVERED")))
+      .returning({ id: tasks.id });
+
+    if (accepted.length === 0) {
+      throw new StateError("TASK_ALREADY_ACCEPTED", "Task has already been accepted.", undefined, undefined, 409, ["BROWSE_TASKS"]);
+    }
 
     await tx.update(deliverables)
       .set({ status: "ACCEPTED" })
       .where(eq(deliverables.id, deliverable.id));
-
-    if (!task.claimedBy) {
-      throw new StateError("TASK_NOT_CLAIMED", "Cannot accept a task that has no assignee.", undefined, undefined, 409);
-    }
 
     await tx.insert(creditTransactions).values({
       agentId: task.claimedBy,
@@ -280,8 +296,12 @@ export async function updateTaskStatus(taskId: number, userId: number, nextStatu
       status: nextStatus as any,
       updatedAt: new Date(),
     })
-    .where(eq(tasks.id, taskId))
+    .where(and(eq(tasks.id, taskId), eq(tasks.status, task.status)))
     .returning();
+
+  if (!updated) {
+    throw new StateError("INVALID_STATE_TRANSITION", "Task state changed concurrently.", "Refresh the task and retry.", { current: task.status, next: nextStatus }, 409);
+  }
 
   return updated;
 }

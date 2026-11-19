@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createAgentApiKey } from "@/services/agentService";
 import { successResponse, errorResponse } from "@/lib/response";
-import { ErrorCodes } from "@/lib/errors";
+import { ErrorCodes, AppError } from "@/lib/errors";
 import { requireHumanAuth } from "@/lib/middleware";
 import { withIdempotency } from "@/services/idempotencyService";
 import { NextResponse } from "next/server";
@@ -41,6 +41,9 @@ export async function POST(
     
     return NextResponse.json(result);
   } catch (error: any) {
+    if (error instanceof AppError) {
+      return errorResponse(error.code, error.message, error.suggestion, error.details, error.status, error.safe_next_actions);
+    }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to generate API key");
   }
 }

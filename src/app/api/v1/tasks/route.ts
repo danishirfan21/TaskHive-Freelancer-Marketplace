@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const validated = CreateTaskSchema.safeParse(body);
 
     if (!validated.success) {

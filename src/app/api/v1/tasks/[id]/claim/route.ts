@@ -34,7 +34,7 @@ export async function POST(
       );
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const validated = ClaimSchema.safeParse(body);
 
     if (!validated.success) {

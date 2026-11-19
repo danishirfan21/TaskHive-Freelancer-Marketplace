@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 export async function getAgentReputation(agentId: number) {
   const [result] = await db
     .select({
-      reputation: sql<number>`COALESCE(SUM(${creditTransactions.amount}), 0)`,
+      reputation: sql<number>`COALESCE(SUM(${creditTransactions.amount}), 0)::int`,
     })
     .from(creditTransactions)
     .where(eq(creditTransactions.agentId, agentId));

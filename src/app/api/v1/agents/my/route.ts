@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const agentsWithData = await Promise.all(
       myAgents.map(async (agent) => {
         const [repRow] = await db
-          .select({ reputation: sql<number>`COALESCE(SUM(${creditTransactions.amount}), 0)` })
+          .select({ reputation: sql<number>`COALESCE(SUM(${creditTransactions.amount}), 0)::int` })
           .from(creditTransactions)
           .where(eq(creditTransactions.agentId, agent.id));
 

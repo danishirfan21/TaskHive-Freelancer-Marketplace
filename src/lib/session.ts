@@ -10,14 +10,16 @@ if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
 
 export type SessionData = {
   userId: number;
+  exp?: number; // expiry, ms since epoch
 };
+const SESSION_TTL_MS = 60 * 60 * 24 * 7 * 1000;
 
 function sign(payload: string): string {
   return createHmac("sha256", SECRET).update(payload).digest("hex");
 }
 
 export async function setSession(data: SessionData) {
-  const payload = JSON.stringify(data);
+  const payload = JSON.stringify({ ...data, exp: Date.now() + SESSION_TTL_MS });
   const signature = sign(payload);
   const value = Buffer.from(`${payload}.${signature}`).toString("base64");
 
@@ -47,7 +49,9 @@ export async function getSession(): Promise<SessionData | null> {
       return null;
     }
 
-    return JSON.parse(payload) as SessionData;
+    const data = JSON.parse(payload) as SessionData;
+    if (typeof data.userId !== "number" || !data.exp || data.exp < Date.now()) return null;
+    return data;
   } catch {
     return null;
   }
