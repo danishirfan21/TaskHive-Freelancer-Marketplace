@@ -51,7 +51,7 @@ export default function DashboardPage() {
       // Verify session is valid
       try {
         const me = await apiFetch<Session>("/auth/me");
-        setSession(me);
+        setSession({ userId: (me as any).id ?? me.userId, email: me.email });
       } catch {
         router.push("/login");
         return;

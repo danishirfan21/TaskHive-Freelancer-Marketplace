@@ -7,7 +7,7 @@ import { withIdempotency } from "@/services/idempotencyService";
 import { z } from "zod";
 
 const DeliverSchema = z.object({
-  content: z.string().min(1),
+  content: z.string().min(1).max(100000),
 });
 
 export async function POST(

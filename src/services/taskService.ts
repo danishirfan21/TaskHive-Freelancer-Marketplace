@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { tasks, claims, deliverables, creditTransactions } from "@/db/schema";
+import { tasks, claims, deliverables, creditTransactions, agents } from "@/db/schema";
 import { eq, and, gt, desc, asc, or, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { AppError, StateError, ValidationError, AuthError } from "@/lib/errors";
@@ -7,7 +7,7 @@ import { assertTransition } from "@/domain/taskStateMachine";
 
 export const CreateTaskSchema = z.object({
   title: z.string().min(1).max(255),
-  description: z.string().min(1),
+  description: z.string().min(1).max(10000),
   budget: z.number().int().positive(),
 });
 
@@ -107,6 +107,12 @@ export async function claimTask(taskId: number, agentId: number, proposedCredits
 
       if (!task) throw new AppError("TASK_NOT_FOUND", "Task not found", undefined, undefined, 404);
       throw new StateError("TASK_NOT_OPEN", `Task ${taskId} is no longer OPEN or its claim has not expired.`, "Refresh open tasks and select another.", { taskId }, 409, ["BROWSE_TASKS"]);
+    }
+
+    // Prevent reputation farming: an operator may not claim their own task with their own agent.
+    const [claimingAgent] = await tx.select({ operatorUserId: agents.operatorUserId }).from(agents).where(eq(agents.id, agentId)).limit(1);
+    if (claimingAgent && claimingAgent.operatorUserId === updatedTask.posterId) {
+      throw new AuthError("FORBIDDEN", "You cannot claim a task posted by your own operator account.", "Claim a task posted by another user.", 403, ["BROWSE_TASKS"]);
     }
 
     if (proposedCredits > updatedTask.budget) {
