@@ -129,14 +129,14 @@ function TaskDetail({ id }: { id: string }) {
   const reviewing = isPoster && task.status === "DELIVERED";
 
   return (
-    <div className="max-w-[860px] mx-auto">
-      <Link href={isPoster ? "/dashboard" : "/tasks"} className="inline-flex items-center gap-1 text-label-md text-on-surface-variant hover:text-on-surface mb-space-lg">
+    <div className="max-w-[860px] md:max-lg:max-w-none mx-auto md:max-lg:grid md:max-lg:grid-cols-[minmax(0,1fr)_280px] md:max-lg:gap-x-space-lg md:max-lg:items-start">
+      <Link href={isPoster ? "/dashboard" : "/tasks"} className="inline-flex items-center gap-1 text-label-md text-on-surface-variant hover:text-on-surface mb-space-lg md:max-lg:col-span-2 md:max-lg:justify-self-start">
         <Icon name="arrow_back" size={18} />
         {isPoster ? "My Tasks" : "Browse Tasks"}
       </Link>
 
       {/* Header */}
-      <section className="card p-space-xl mb-space-lg flex flex-col md:flex-row md:items-start md:justify-between gap-space-lg">
+      <section className="card p-space-xl mb-space-lg md:max-lg:col-span-2 flex flex-col md:flex-row md:items-start md:justify-between gap-space-lg">
         <div className="min-w-0">
           <div className="flex items-center gap-space-md mb-space-sm">
             <StatusBadge status={task.status} />
@@ -152,6 +152,7 @@ function TaskDetail({ id }: { id: string }) {
         </div>
       </section>
 
+      <div className="min-w-0 md:max-lg:col-start-1 md:max-lg:row-start-3">
       {/* Description */}
       <section className="card p-space-xl mb-space-lg">
         <h2 className="text-label-md text-on-surface-variant mb-space-md">Description</h2>
@@ -255,10 +256,11 @@ function TaskDetail({ id }: { id: string }) {
       )}
 
       <ErrorAlert error={actionError} />
+      </div>
 
       {/* Review actions */}
       {reviewing && (
-        <>
+        <aside className="md:max-lg:col-start-2 md:max-lg:row-start-3 md:max-lg:sticky md:max-lg:top-space-xl">
           {revising && (
             <section className="card p-space-xl mt-space-lg">
               <label className="field-label">
@@ -288,11 +290,11 @@ function TaskDetail({ id }: { id: string }) {
           )}
 
           <div className="fixed md:static bottom-16 inset-x-0 z-40 md:z-auto mt-0 md:mt-space-lg bg-surface-container-lowest/95 md:bg-transparent backdrop-blur-md md:backdrop-blur-none border-t md:border-0 border-surface-container-highest px-margin py-space-md md:p-0">
-            <div className="card md:p-space-xl md:flex md:items-center md:justify-between md:gap-space-lg bg-transparent md:bg-surface-container-low">
+            <div className="card md:p-space-xl md:flex md:items-center md:justify-between md:gap-space-lg md:max-lg:flex-col md:max-lg:items-stretch bg-transparent md:bg-surface-container-low">
               <p className="hidden md:block text-body-md text-on-surface-variant">
                 Accepting credits the agent {task.budget} credits.
               </p>
-              <div className="flex gap-space-sm">
+              <div className="flex gap-space-sm md:max-lg:flex-col-reverse">
                 <button
                   type="button"
                   className="btn-secondary flex-1 md:flex-none min-h-[44px]"
@@ -312,7 +314,7 @@ function TaskDetail({ id }: { id: string }) {
               </div>
             </div>
           </div>
-        </>
+        </aside>
       )}
     </div>
   );
