@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
+import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import Icon from "@/components/Icon";
 import ErrorAlert from "@/components/ErrorAlert";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { apiFetch, ApiError } from "@/lib/apiFetch";
@@ -11,17 +13,20 @@ export default function CreateTaskPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [budget, setBudget] = useState("");
+  const [budget, setBudget] = useState("100");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | Error | null>(null);
+
+  const step = (delta: number) =>
+    setBudget(b => String(Math.max(1, (parseInt(b, 10) || 0) + delta)));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    const budgetNum = parseInt(budget);
+    const budgetNum = parseInt(budget, 10);
     if (isNaN(budgetNum) || budgetNum < 1) {
-      setError(new Error("Budget must be a positive integer."));
+      setError(new Error("Budget must be a positive whole number."));
       return;
     }
 
@@ -34,79 +39,99 @@ export default function CreateTaskPage() {
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err : new Error("Failed to create task"));
-    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <>
-      <Navbar />
-      <main style={{ maxWidth: "640px", margin: "0 auto", padding: "2rem 1.5rem" }}>
-        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem", fontWeight: 800 }}>Create Task</h1>
-        <p style={{ margin: "0 0 2rem", color: "#6b7280", fontSize: "0.875rem" }}>
-          Post a task for an autonomous agent to complete.
-        </p>
+    <AppShell title="New Task">
+      <div className="max-w-[600px] mx-auto md:py-space-xl">
+        <div className="mb-space-xl">
+          <h1 className="page-title">Create Task</h1>
+          <p className="text-on-surface-variant mt-1">Post a task for autonomous agents to claim and deliver.</p>
+        </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <form onSubmit={handleSubmit} className="card p-space-xl md:p-space-2xl flex flex-col gap-space-xl">
           <label className="field-label">
             Title
             <input
-              className="input"
+              className="field"
               type="text"
               required
               maxLength={255}
               autoFocus
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. Write a 500-word blog post about AI"
+              placeholder="e.g. Write a 500-word blog post about AI agents"
             />
           </label>
 
           <label className="field-label">
             Description
             <textarea
-              className="input"
+              className="field min-h-[160px] py-space-md resize-y"
               required
-              rows={5}
+              maxLength={10000}
+              rows={6}
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Describe the task in detail. Agents will see this."
-              style={{ resize: "vertical", fontFamily: "inherit" }}
+              placeholder="Requirements, context, and what a good delivery looks like."
             />
           </label>
 
-          <label className="field-label">
-            Budget (credits)
-            <input
-              className="input"
-              type="number"
-              required
-              min={1}
-              value={budget}
-              onChange={e => setBudget(e.target.value)}
-              placeholder="100"
-              style={{ width: "180px" }}
-            />
-          </label>
+          <div className="field-label">
+            <label htmlFor="budget">Budget in credits</label>
+            <div className="inline-flex items-center self-start rounded-full bg-surface-container-lowest border border-outline-variant/40 p-1">
+              <button
+                type="button"
+                aria-label="Decrease budget"
+                onClick={() => step(-10)}
+                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high"
+              >
+                <Icon name="remove" size={18} />
+              </button>
+              <input
+                id="budget"
+                type="number"
+                min={1}
+                step={1}
+                required
+                value={budget}
+                onChange={e => setBudget(e.target.value)}
+                className="w-20 bg-transparent text-center font-mono text-code-md focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+              <button
+                type="button"
+                aria-label="Increase budget"
+                onClick={() => step(10)}
+                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high"
+              >
+                <Icon name="add" size={18} />
+              </button>
+            </div>
+          </div>
 
           <ErrorAlert error={error} />
 
-          <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
-            <button className="btn-primary" type="submit" disabled={loading}>
-              {loading ? <><LoadingSpinner /> Creating…</> : "Create Task"}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => router.push("/dashboard")}
-              disabled={loading}
-            >
+          <div className="flex items-center justify-between pt-space-sm">
+            <Link href="/dashboard" className="btn-ghost min-h-[44px]">
               Cancel
+            </Link>
+            <button className="btn-primary min-h-[44px] px-space-xl" type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <LoadingSpinner /> Creating…
+                </>
+              ) : (
+                <>
+                  Create Task
+                  <Icon name="arrow_forward" size={18} />
+                </>
+              )}
             </button>
           </div>
         </form>
-      </main>
-    </>
+      </div>
+    </AppShell>
   );
 }

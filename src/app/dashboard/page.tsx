@@ -1,152 +1,157 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
-import TaskCard from "@/components/TaskCard";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import Icon from "@/components/Icon";
+import StatusBadge, { statusLabel } from "@/components/StatusBadge";
 import ErrorAlert from "@/components/ErrorAlert";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { apiFetch, ApiError } from "@/lib/apiFetch";
-import Link from "next/link";
+import { timeAgo } from "@/lib/time";
 
 interface Task {
   id: number;
   title: string;
-  description: string;
   budget: number;
   status: string;
   claimedBy?: number | null;
-  posterId: number;
   createdAt: string;
-  deliverables?: Array<{
-    content: string;
-    status: string;
-    revisionNumber: number;
-  }>;
+  updatedAt?: string;
 }
 
-interface Session {
-  userId: number;
-  email: string;
+const FILTERS = ["ALL", "OPEN", "CLAIMED", "DELIVERED", "ACCEPTED"] as const;
+type Filter = (typeof FILTERS)[number];
+
+const STATUS_ICON: Record<string, { name: string; cls: string }> = {
+  OPEN: { name: "radio_button_unchecked", cls: "text-st-open" },
+  CLAIMED: { name: "progress_activity", cls: "text-st-claimed" },
+  DELIVERED: { name: "rate_review", cls: "text-st-delivered" },
+  ACCEPTED: { name: "check_circle", cls: "text-st-accepted" },
+  CANCELED: { name: "cancel", cls: "text-st-canceled" },
+};
+
+function detail(t: Task) {
+  switch (t.status) {
+    case "CLAIMED":
+      return `Claimed by Agent #${t.claimedBy}`;
+    case "DELIVERED":
+      return `Delivered by Agent #${t.claimedBy}`;
+    case "ACCEPTED":
+      return `Completed by Agent #${t.claimedBy}`;
+    case "CANCELED":
+      return "Canceled";
+    default:
+      return "Waiting for an agent";
+  }
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [session, setSession] = useState<Session | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<ApiError | Error | null>(null);
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      const data = await apiFetch<Task[]>("/tasks/my");
-      setTasks(data);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error("Failed to load tasks"));
-    }
-  }, []);
+  const [filter, setFilter] = useState<Filter>("ALL");
 
   useEffect(() => {
-    async function init() {
-      // Verify session is valid
-      try {
-        const me = await apiFetch<Session>("/auth/me");
-        setSession({ userId: (me as any).id ?? me.userId, email: me.email });
-      } catch {
-        router.push("/login");
-        return;
-      }
-      await fetchTasks();
-      setLoading(false);
-    }
-    init();
-  }, [router, fetchTasks]);
+    apiFetch<Task[]>("/tasks/my")
+      .then(setTasks)
+      .catch(err => {
+        setError(err instanceof Error ? err : new Error("Failed to load tasks"));
+        setTasks([]);
+      });
+  }, []);
 
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
-        <LoadingSpinner size={32} inline={false} />
-      </div>
-    );
-  }
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { ALL: tasks?.length ?? 0 };
+    for (const t of tasks ?? []) c[t.status] = (c[t.status] ?? 0) + 1;
+    return c;
+  }, [tasks]);
 
-  const openTasks = tasks.filter(t => t.status === "OPEN");
-  const activeTasks = tasks.filter(t => ["CLAIMED", "DELIVERED"].includes(t.status));
-  const doneTasks = tasks.filter(t => ["ACCEPTED", "CANCELED"].includes(t.status));
+  const visible = (tasks ?? []).filter(t => filter === "ALL" || t.status === filter);
 
   return (
-    <>
-      <Navbar />
-      <main style={{ maxWidth: "800px", margin: "0 auto", padding: "2rem 1.5rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800 }}>My Tasks</h1>
-            <p style={{ margin: "0.25rem 0 0", color: "#6b7280", fontSize: "0.875rem" }}>
-              Operator: {session?.email}
-            </p>
-          </div>
-          <Link href="/tasks/create">
-            <button className="btn-primary">+ New Task</button>
+    <AppShell title="My Tasks">
+      <div className="flex items-end justify-between gap-space-lg mb-space-xl">
+        <div>
+          <h1 className="page-title">My Tasks</h1>
+          <p className="text-on-surface-variant mt-1 hidden md:block">Tasks you have posted and their progress.</p>
+        </div>
+        <Link href="/tasks/create" className="btn-secondary hidden md:inline-flex">
+          <Icon name="add" size={18} />
+          Post Task
+        </Link>
+      </div>
+
+      <div className="flex gap-space-sm overflow-x-auto pb-space-sm mb-space-lg -mx-margin px-margin md:mx-0 md:px-0">
+        {FILTERS.map(f => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`h-10 shrink-0 px-space-lg rounded-lg text-label-md transition-colors ${
+              filter === f
+                ? "bg-surface-container-high text-on-surface"
+                : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            {f === "ALL" ? "All" : statusLabel(f)}
+            <span className="ml-2 text-on-surface-variant font-mono text-code-sm">{counts[f] ?? 0}</span>
+          </button>
+        ))}
+      </div>
+
+      <ErrorAlert error={error} />
+
+      {tasks === null ? (
+        <div className="py-space-3xl">
+          <LoadingSpinner size={28} inline={false} />
+        </div>
+      ) : tasks.length === 0 && !error ? (
+        <div className="card py-space-3xl px-space-xl text-center">
+          <Icon name="inbox" size={40} className="text-outline" />
+          <p className="text-headline-sm mt-space-md">No tasks yet</p>
+          <p className="text-on-surface-variant mt-1 mb-space-xl">Post your first task and an agent can pick it up.</p>
+          <Link href="/tasks/create" className="btn-primary min-h-[44px]">
+            Post your first task
           </Link>
         </div>
-
-        <ErrorAlert error={error} />
-
-        {tasks.length === 0 && !error && (
-          <div style={{ textAlign: "center", padding: "4rem 2rem", color: "#4b5563" }}>
-            <p style={{ fontSize: "1rem" }}>No tasks yet.</p>
-            <Link href="/tasks/create">
-              <button className="btn-primary" style={{ marginTop: "1rem" }}>Create your first task</button>
-            </Link>
-          </div>
-        )}
-
-        {openTasks.length > 0 && (
-          <Section title="Open">
-            {openTasks.map(t => (
-              <TaskCard key={t.id} task={t} currentUserId={session?.userId ?? 0} onRefresh={fetchTasks} />
-            ))}
-          </Section>
-        )}
-
-        {activeTasks.length > 0 && (
-          <Section title="In Progress">
-            {activeTasks.map(t => (
-              <TaskCard key={t.id} task={t} currentUserId={session?.userId ?? 0} onRefresh={fetchTasks} />
-            ))}
-          </Section>
-        )}
-
-        {doneTasks.length > 0 && (
-          <Section title="Completed / Canceled">
-            {doneTasks.map(t => (
-              <TaskCard key={t.id} task={t} currentUserId={session?.userId ?? 0} onRefresh={fetchTasks} />
-            ))}
-          </Section>
-        )}
-      </main>
-    </>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section style={{ marginBottom: "2rem" }}>
-      <h2 style={{
-        fontSize: "0.75rem",
-        fontWeight: 700,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        color: "#4b5563",
-        margin: "0 0 0.75rem",
-        borderBottom: "1px solid #1f1f1f",
-        paddingBottom: "0.5rem",
-      }}>
-        {title}
-      </h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {children}
-      </div>
-    </section>
+      ) : visible.length === 0 ? (
+        <p className="py-space-3xl text-center text-on-surface-variant">No {statusLabel(filter).toLowerCase()} tasks.</p>
+      ) : (
+        <ul className="flex flex-col gap-space-md">
+          {visible.map(t => {
+            const icon = STATUS_ICON[t.status] ?? STATUS_ICON.OPEN;
+            const review = t.status === "DELIVERED";
+            return (
+              <li key={t.id}>
+                <Link
+                  href={`/tasks/${t.id}`}
+                  className="card flex items-center gap-space-lg p-space-lg hover:bg-surface-container transition-colors"
+                >
+                  <span className="hidden sm:flex w-10 h-10 shrink-0 rounded-lg bg-surface-container-high items-center justify-center">
+                    <Icon name={icon.name} className={icon.cls} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-x-space-md gap-y-1">
+                      <span className="text-body-lg text-on-surface truncate max-w-full">{t.title}</span>
+                      <StatusBadge status={t.status} />
+                    </span>
+                    <span className="mt-1 flex flex-wrap items-center gap-x-space-md text-body-sm text-on-surface-variant">
+                      <span className="font-mono">{t.budget} credits</span>
+                      <span>{detail(t)}</span>
+                      <span>Posted {timeAgo(t.createdAt)}</span>
+                    </span>
+                  </span>
+                  <span className={`${review ? "btn-primary" : "btn-secondary"} shrink-0 hidden sm:inline-flex`}>
+                    {review ? "Review delivery" : "View"}
+                    {review && <Icon name="arrow_forward" size={16} />}
+                  </span>
+                  <Icon name="chevron_right" className="sm:hidden text-outline" />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </AppShell>
   );
 }

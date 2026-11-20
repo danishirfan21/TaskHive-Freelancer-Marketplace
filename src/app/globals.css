@@ -1,136 +1,69 @@
-:root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --accent: #3b82f6;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    @apply bg-surface text-on-surface font-sans text-body-md antialiased min-h-screen;
+    font-feature-settings: "tnum";
+  }
+  ::selection {
+    @apply bg-primary-container text-on-primary-container;
+  }
+  button:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
 }
 
-body {
-  color: var(--foreground);
-  background: radial-gradient(circle at top center, #1a1a1a 0%, #0a0a0a 100%);
-  min-height: 100vh;
+@layer components {
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-space-xs rounded-lg text-label-md
+      min-h-[40px] px-space-lg whitespace-nowrap transition-all select-none
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary;
+  }
+  .btn-primary {
+    @apply btn bg-primary-container text-on-primary-container font-medium hover:bg-primary-fixed hover:text-on-primary-fixed active:scale-[0.99];
+  }
+  .btn-secondary {
+    @apply btn bg-surface-container-high text-on-surface hover:bg-surface-variant;
+  }
+  .btn-ghost {
+    @apply btn text-on-surface-variant hover:text-on-surface hover:bg-surface-container;
+  }
+  .btn-danger {
+    @apply btn bg-error-container/30 text-error hover:bg-error-container/50;
+  }
+
+  /* Form controls */
+  .field {
+    @apply w-full min-h-[44px] px-space-md bg-surface-container-lowest text-on-surface text-body-md
+      placeholder:text-outline rounded-lg border border-outline-variant/40
+      focus:outline-none focus:border-primary-container focus:bg-surface-container transition-colors;
+  }
+  .field-label {
+    @apply flex flex-col gap-space-sm text-label-md text-on-surface;
+  }
+
+  /* Surfaces */
+  .card {
+    @apply bg-surface-container-low rounded-xl;
+  }
+
+  /* Page headings */
+  .page-title {
+    @apply text-headline-lg-mobile md:text-headline-lg text-on-surface;
+  }
 }
 
-* {
-  box-sizing: border-box;
-}
-
-pre {
-  background: #111;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid #333;
-  overflow-x: auto;
-}
-
-code {
-  color: var(--accent);
-}
-
-/* ------------------------------------------------------------------ */
-/* Inputs                                                               */
-/* ------------------------------------------------------------------ */
-.input {
-  width: 100%;
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 0.55rem 0.85rem;
-  font-size: 0.875rem;
-  color: #e5e7eb;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-  display: block;
-  margin-top: 0.35rem;
-}
-.input:focus {
-  border-color: #3b82f6;
-}
-.input::placeholder {
-  color: #4b5563;
-}
-
-/* ------------------------------------------------------------------ */
-/* Buttons                                                              */
-/* ------------------------------------------------------------------ */
-.btn-primary,
-.btn-ghost,
-.btn-danger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-.btn-primary {
-  background: #3b82f6;
-  color: #fff;
-}
-.btn-primary:hover:not(:disabled) {
-  background: #2563eb;
-}
-.btn-ghost {
-  background: rgba(255,255,255,0.07);
-  color: #d1d5db;
-  border: 1px solid #2a2a2a;
-}
-.btn-ghost:hover:not(:disabled) {
-  background: rgba(255,255,255,0.12);
-}
-.btn-danger {
-  background: rgba(220,38,38,0.15);
-  color: #f87171;
-  border: 1px solid rgba(220,38,38,0.3);
-}
-.btn-danger:hover:not(:disabled) {
-  background: rgba(220,38,38,0.25);
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ------------------------------------------------------------------ */
-/* Form helpers                                                         */
-/* ------------------------------------------------------------------ */
-.field-label {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #9ca3af;
-  gap: 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* Auth card layout                                                     */
-/* ------------------------------------------------------------------ */
-.auth-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 2rem;
-}
-.auth-card {
-  width: 100%;
-  max-width: 420px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid #1f1f1f;
-  border-radius: 16px;
-  padding: 2rem;
-}
-
-/* ------------------------------------------------------------------ */
-/* Spinner keyframe                                                     */
-/* ------------------------------------------------------------------ */
+/* Legacy rules still used by components not yet migrated */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

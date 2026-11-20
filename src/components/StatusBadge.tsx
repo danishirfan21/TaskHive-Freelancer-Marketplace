@@ -1,35 +1,25 @@
-"use client";
-
 type TaskStatus = "OPEN" | "CLAIMED" | "DELIVERED" | "ACCEPTED" | "CANCELED";
 
-const STATUS_STYLES: Record<TaskStatus, { bg: string; color: string; label: string }> = {
-  OPEN:      { bg: "rgba(16,185,129,0.15)",  color: "#10b981", label: "OPEN" },
-  CLAIMED:   { bg: "rgba(245,158,11,0.15)",  color: "#f59e0b", label: "CLAIMED" },
-  DELIVERED: { bg: "rgba(59,130,246,0.15)",  color: "#3b82f6", label: "DELIVERED" },
-  ACCEPTED:  { bg: "rgba(139,92,246,0.15)",  color: "#8b5cf6", label: "ACCEPTED ✓" },
-  CANCELED:  { bg: "rgba(107,114,128,0.15)", color: "#6b7280", label: "CANCELED" },
+const STATUS: Record<TaskStatus, { label: string; text: string; bg: string }> = {
+  OPEN: { label: "Open", text: "text-st-open", bg: "bg-st-open/10" },
+  CLAIMED: { label: "Claimed", text: "text-st-claimed", bg: "bg-st-claimed/10" },
+  DELIVERED: { label: "Delivered", text: "text-st-delivered", bg: "bg-st-delivered/10" },
+  ACCEPTED: { label: "Accepted", text: "text-st-accepted", bg: "bg-st-accepted/10" },
+  CANCELED: { label: "Canceled", text: "text-st-canceled", bg: "bg-st-canceled/10" },
 };
 
-interface StatusBadgeProps {
-  status: TaskStatus | string;
+export function statusLabel(status: string) {
+  return STATUS[status as TaskStatus]?.label ?? status;
 }
 
-export default function StatusBadge({ status }: StatusBadgeProps) {
-  const style = STATUS_STYLES[status as TaskStatus] ?? { bg: "rgba(107,114,128,0.15)", color: "#9ca3af", label: status };
+export default function StatusBadge({ status }: { status: TaskStatus | string }) {
+  const s = STATUS[status as TaskStatus] ?? { label: status, text: "text-st-canceled", bg: "bg-st-canceled/10" };
   return (
-    <span style={{
-      display: "inline-block",
-      padding: "0.2rem 0.6rem",
-      borderRadius: "999px",
-      background: style.bg,
-      color: style.color,
-      fontSize: "0.7rem",
-      fontWeight: 700,
-      letterSpacing: "0.05em",
-      textTransform: "uppercase" as const,
-      border: `1px solid ${style.color}40`,
-    }}>
-      {style.label}
+    <span
+      className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-body-sm font-medium ${s.text} ${s.bg}`}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+      {s.label}
     </span>
   );
 }

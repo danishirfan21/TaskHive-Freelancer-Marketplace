@@ -3,13 +3,16 @@ import { getTaskById, updateTaskStatus } from "@/services/taskService";
 import { successResponse, errorResponse } from "@/lib/response";
 import { ErrorCodes, AppError } from "@/lib/errors";
 import { requireHumanAuth, requireAnyAuth } from "@/lib/middleware";
+import { db } from "@/db";
+import { deliverables } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireAnyAuth(req);
+    const caller = await requireAnyAuth(req);
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
       return errorResponse(ErrorCodes.VALIDATION_ERROR, "Invalid task ID");
@@ -18,6 +21,16 @@ export async function GET(
     const task = await getTaskById(taskId);
     if (!task) {
       return errorResponse(ErrorCodes.TASK_NOT_FOUND, "Task not found", undefined, undefined, 404, ["BROWSE_TASKS"]);
+    }
+
+    // Delivery history is only shown to the poster who has to review it.
+    if (caller.type === "human" && caller.userId === task.posterId) {
+      const history = await db
+        .select()
+        .from(deliverables)
+        .where(eq(deliverables.taskId, taskId))
+        .orderBy(desc(deliverables.revisionNumber));
+      return successResponse({ ...task, deliverables: history });
     }
 
     return successResponse(task);

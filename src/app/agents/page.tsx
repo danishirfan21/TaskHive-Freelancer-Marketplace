@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
+import { useCallback, useEffect, useState } from "react";
+import AppShell from "@/components/AppShell";
+import Icon from "@/components/Icon";
 import ErrorAlert from "@/components/ErrorAlert";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { apiFetch, ApiError } from "@/lib/apiFetch";
@@ -15,249 +15,216 @@ interface Agent {
   createdAt: string;
 }
 
-// Per-agent state for one-time key display
 interface NewKey {
   agentId: number;
+  agentName: string;
   plaintext: string;
-  prefix: string;
 }
 
 export default function AgentsPage() {
-  const router = useRouter();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [agents, setAgents] = useState<Agent[] | null>(null);
   const [error, setError] = useState<ApiError | Error | null>(null);
+  const [expanded, setExpanded] = useState<number | null>(null);
 
-  // Create agent form
-  const [agentName, setAgentName] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<ApiError | Error | null>(null);
 
-  // One-time key display (cleared on dismiss or refresh)
-  const [newKeys, setNewKeys] = useState<NewKey[]>([]);
-  const [generatingKeyFor, setGeneratingKeyFor] = useState<number | null>(null);
+  const [newKey, setNewKey] = useState<NewKey | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [generatingFor, setGeneratingFor] = useState<number | null>(null);
   const [keyError, setKeyError] = useState<ApiError | Error | null>(null);
 
-  const fetchAgents = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const data = await apiFetch<Agent[]>("/agents/my");
-      setAgents(data);
+      setAgents(await apiFetch<Agent[]>("/agents/my"));
     } catch (err) {
       setError(err instanceof Error ? err : new Error("Failed to load agents"));
+      setAgents([]);
     }
   }, []);
 
   useEffect(() => {
-    async function init() {
-      try {
-        await apiFetch("/auth/me");
-      } catch {
-        router.push("/login");
-        return;
-      }
-      await fetchAgents();
-      setLoading(false);
-    }
-    init();
-  }, [router, fetchAgents]);
+    load();
+  }, [load]);
 
-  async function handleCreateAgent(e: React.FormEvent) {
+  async function createAgent(e: React.FormEvent) {
     e.preventDefault();
     setCreateError(null);
     setCreating(true);
     try {
-      await apiFetch("/agents", {
-        method: "POST",
-        body: JSON.stringify({ name: agentName }),
-      });
-      setAgentName("");
-      await fetchAgents();
+      await apiFetch("/agents", { method: "POST", body: JSON.stringify({ name }) });
+      setName("");
+      setShowForm(false);
+      await load();
     } catch (err) {
-      setCreateError(err instanceof Error ? err : new Error("Failed to create agent"));
+      setCreateError(err instanceof Error ? err : new Error("Failed to register agent"));
     } finally {
       setCreating(false);
     }
   }
 
-  async function handleGenerateKey(agentId: number) {
-    setGeneratingKeyFor(agentId);
+  async function generateKey(agent: Agent) {
+    setGeneratingFor(agent.id);
     setKeyError(null);
     try {
-      const data = await apiFetch<{ api_key: string; prefix: string; note: string }>(
-        `/agents/${agentId}/api-keys`,
-        { method: "POST" }
-      );
-      setNewKeys(prev => [
-        ...prev.filter(k => k.agentId !== agentId),
-        { agentId, plaintext: data.api_key, prefix: data.prefix },
-      ]);
-      await fetchAgents();
+      const data = await apiFetch<{ api_key: string }>(`/agents/${agent.id}/api-keys`, { method: "POST" });
+      setNewKey({ agentId: agent.id, agentName: agent.name, plaintext: data.api_key });
+      setCopied(false);
+      await load();
     } catch (err) {
-      setKeyError(err instanceof Error ? err : new Error("Failed to generate key"));
+      setKeyError(err instanceof Error ? err : new Error("Failed to create key"));
     } finally {
-      setGeneratingKeyFor(null);
+      setGeneratingFor(null);
     }
   }
 
-  function dismissKey(agentId: number) {
-    setNewKeys(prev => prev.filter(k => k.agentId !== agentId));
-  }
-
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
-        <LoadingSpinner size={32} inline={false} />
-      </div>
-    );
-  }
-
   return (
-    <>
-      <Navbar />
-      <main style={{ maxWidth: "720px", margin: "0 auto", padding: "2rem 1.5rem" }}>
-        <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.5rem", fontWeight: 800 }}>My Agents</h1>
-        <p style={{ margin: "0 0 2rem", color: "#6b7280", fontSize: "0.875rem" }}>
-          Register AI agents and issue API keys for them to access the marketplace.
-        </p>
-
-        {/* Create agent form */}
-        <div style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid #1f1f1f",
-          borderRadius: "12px",
-          padding: "1.25rem 1.5rem",
-          marginBottom: "2rem",
-        }}>
-          <h2 style={{ margin: "0 0 1rem", fontSize: "0.9rem", fontWeight: 600, color: "#d1d5db" }}>
-            Register New Agent
-          </h2>
-          <form onSubmit={handleCreateAgent} style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" as const }}>
-            <input
-              className="input"
-              required
-              minLength={2}
-              maxLength={255}
-              placeholder="Agent name (e.g. WriterBot-v2)"
-              value={agentName}
-              onChange={e => setAgentName(e.target.value)}
-              style={{ flex: 1, minWidth: "200px" }}
-            />
-            <button className="btn-primary" type="submit" disabled={creating}>
-              {creating ? <><LoadingSpinner /> Creating…</> : "Register Agent"}
-            </button>
-          </form>
-          <ErrorAlert error={createError} />
+    <AppShell title="Agents">
+      <div className="max-w-[860px] mx-auto">
+        <div className="flex items-end justify-between gap-space-lg mb-space-xl">
+          <div>
+            <h1 className="page-title">Agents</h1>
+            <p className="text-on-surface-variant mt-1">Manage your agents and their API keys.</p>
+          </div>
+          <button type="button" className="btn-primary min-h-[44px] shrink-0" onClick={() => setShowForm(v => !v)}>
+            <Icon name="add" size={18} />
+            <span className="hidden sm:inline">Register Agent</span>
+            <span className="sm:hidden">Register</span>
+          </button>
         </div>
+
+        {showForm && (
+          <form onSubmit={createAgent} className="card p-space-xl mb-space-lg flex flex-col gap-space-lg">
+            <label className="field-label">
+              Agent name
+              <input
+                className="field"
+                required
+                minLength={2}
+                maxLength={255}
+                autoFocus
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="e.g. WriterBot-v2"
+              />
+            </label>
+            <ErrorAlert error={createError} />
+            <div className="flex justify-end gap-space-sm">
+              <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary" disabled={creating}>
+                {creating ? <LoadingSpinner /> : "Register"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {newKey && (
+          <section className="card p-space-xl mb-space-lg" aria-live="polite">
+            <div className="flex items-start justify-between gap-space-lg">
+              <div className="flex items-start gap-space-md min-w-0">
+                <span className="w-10 h-10 shrink-0 rounded-lg bg-surface-container-high flex items-center justify-center">
+                  <Icon name="key" className="text-primary" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-headline-sm">New API key for {newKey.agentName}</p>
+                  <p className="text-body-md text-on-surface-variant">Copy it now. It won&apos;t be shown again.</p>
+                </div>
+              </div>
+              <button type="button" className="btn-secondary shrink-0" onClick={() => setNewKey(null)}>
+                Done
+              </button>
+            </div>
+            <div className="mt-space-lg flex flex-col sm:flex-row sm:items-center gap-space-md rounded-lg bg-surface-container-lowest p-space-md">
+              <code className="flex-1 min-w-0 font-mono text-code-md break-all text-on-surface">{newKey.plaintext}</code>
+              <button
+                type="button"
+                className="btn-primary shrink-0"
+                onClick={() =>
+                  navigator.clipboard.writeText(newKey.plaintext).then(() => {
+                    setCopied(true);
+                  })
+                }
+              >
+                <Icon name={copied ? "check" : "content_copy"} size={16} />
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </section>
+        )}
 
         <ErrorAlert error={error} />
         <ErrorAlert error={keyError} />
 
-        {agents.length === 0 && !error && (
-          <p style={{ textAlign: "center", color: "#4b5563", padding: "2rem 0" }}>
-            No agents yet. Register your first agent above.
-          </p>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {agents.map(agent => {
-            const pendingKey = newKeys.find(k => k.agentId === agent.id);
-            return (
-              <div key={agent.id} style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid #1f1f1f",
-                borderRadius: "12px",
-                padding: "1.25rem 1.5rem",
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
-                  <div>
-                    <h3 style={{ margin: "0 0 0.25rem", fontSize: "1rem", fontWeight: 600 }}>{agent.name}</h3>
-                    <p style={{ margin: 0, fontSize: "0.78rem", color: "#6b7280" }}>
-                      Agent #{agent.id} &nbsp;·&nbsp;
-                      <span style={{ color: "#10b981" }}>⬡ {agent.reputation} rep</span>
-                    </p>
-                  </div>
+        {agents === null ? (
+          <div className="py-space-3xl">
+            <LoadingSpinner size={28} inline={false} />
+          </div>
+        ) : agents.length === 0 && !error ? (
+          <div className="card py-space-3xl px-space-xl text-center">
+            <Icon name="smart_toy" size={40} className="text-outline" />
+            <p className="text-headline-sm mt-space-md">No agents yet</p>
+            <p className="text-on-surface-variant mt-1">Register an agent to get an API key it can use to claim tasks.</p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-space-md">
+            {agents.map(a => {
+              const open = expanded === a.id;
+              return (
+                <li key={a.id} className="card overflow-hidden">
                   <button
-                    className="btn-ghost"
-                    onClick={() => handleGenerateKey(agent.id)}
-                    disabled={generatingKeyFor === agent.id}
-                    style={{ flexShrink: 0, fontSize: "0.8rem" }}
+                    type="button"
+                    onClick={() => setExpanded(open ? null : a.id)}
+                    aria-expanded={open}
+                    className="w-full flex items-center gap-space-lg p-space-lg text-left hover:bg-surface-container transition-colors"
                   >
-                    {generatingKeyFor === agent.id ? <><LoadingSpinner /> Generating…</> : "+ Generate API Key"}
+                    <span className="w-10 h-10 shrink-0 rounded-lg bg-surface-container-high flex items-center justify-center">
+                      <Icon name="smart_toy" className="text-primary" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-body-lg truncate">{a.name}</span>
+                      <span className="block font-mono text-code-sm text-on-surface-variant">Agent #{a.id}</span>
+                    </span>
+                    <span className="text-right shrink-0">
+                      <span className="block text-body-sm text-on-surface-variant">Reputation</span>
+                      <span className="block font-mono text-code-md">{a.reputation} credits</span>
+                    </span>
+                    <Icon name={open ? "expand_less" : "expand_more"} className="text-on-surface-variant" />
                   </button>
-                </div>
 
-                {/* Active key prefixes */}
-                {agent.activeKeyPrefixes.length > 0 && (
-                  <div style={{ marginTop: "0.75rem" }}>
-                    <p style={{ margin: "0 0 0.35rem", fontSize: "0.75rem", color: "#6b7280", fontWeight: 600 }}>
-                      ACTIVE KEYS
-                    </p>
-                    <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" as const }}>
-                      {agent.activeKeyPrefixes.map(prefix => (
-                        <code key={prefix} style={{
-                          background: "#111",
-                          border: "1px solid #222",
-                          borderRadius: "4px",
-                          padding: "0.2rem 0.5rem",
-                          fontSize: "0.75rem",
-                          color: "#9ca3af",
-                        }}>
-                          {prefix}••••••••
-                        </code>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* One-time key reveal */}
-                {pendingKey && (
-                  <div style={{
-                    marginTop: "1rem",
-                    background: "rgba(234,179,8,0.08)",
-                    border: "1px solid rgba(234,179,8,0.3)",
-                    borderRadius: "8px",
-                    padding: "0.875rem 1rem",
-                  }}>
-                    <p style={{ margin: "0 0 0.5rem", fontSize: "0.75rem", color: "#fbbf24", fontWeight: 700 }}>
-                      ⚠ COPY THIS KEY — it will not be shown again
-                    </p>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                      <code style={{
-                        flex: 1,
-                        background: "#0d0d0d",
-                        border: "1px solid #333",
-                        borderRadius: "6px",
-                        padding: "0.4rem 0.75rem",
-                        fontSize: "0.8rem",
-                        color: "#e5e7eb",
-                        wordBreak: "break-all",
-                      }}>
-                        {pendingKey.plaintext}
-                      </code>
+                  {open && (
+                    <div className="px-space-lg pb-space-lg pt-space-sm border-t border-surface-container-highest">
+                      <p className="text-label-md text-on-surface-variant mt-space-md mb-space-sm">Active keys</p>
+                      {a.activeKeyPrefixes.length === 0 ? (
+                        <p className="text-body-md text-on-surface-variant">No active keys.</p>
+                      ) : (
+                        <ul className="flex flex-wrap gap-space-sm">
+                          {a.activeKeyPrefixes.map(p => (
+                            <li key={p} className="font-mono text-code-md bg-surface-container-lowest rounded-lg px-space-md py-space-xs text-primary">
+                              {p}••••••••
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       <button
-                        className="btn-ghost"
-                        style={{ flexShrink: 0, fontSize: "0.75rem" }}
-                        onClick={() => {
-                          navigator.clipboard.writeText(pendingKey.plaintext);
-                        }}
+                        type="button"
+                        className="btn-secondary mt-space-lg"
+                        onClick={() => generateKey(a)}
+                        disabled={generatingFor === a.id}
                       >
-                        Copy
+                        {generatingFor === a.id ? <LoadingSpinner /> : (<><Icon name="add" size={16} /> Create new key</>)}
                       </button>
                     </div>
-                    <button
-                      className="btn-ghost"
-                      style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#6b7280" }}
-                      onClick={() => dismissKey(agent.id)}
-                    >
-                      I&apos;ve saved it — dismiss
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </main>
-    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </AppShell>
   );
 }
