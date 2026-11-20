@@ -79,10 +79,17 @@ export default function AppShell({
         <div className="h-14 max-w-[1100px] mx-auto px-margin md:px-margin-desktop flex items-center justify-between">
           <div className="flex items-center gap-space-xl min-w-0">
             <Link href="/tasks" className="flex items-center gap-space-sm group shrink-0">
-              <Icon name="hive" className="text-primary" />
-              <span className="text-headline-sm text-on-surface group-hover:text-primary transition-colors">
-                {title ? <span className="md:hidden">{title}</span> : null}
-                <span className={title ? "hidden md:inline" : ""}>TaskHive</span>
+              <span className="w-9 h-9 md:w-auto md:h-auto rounded-lg bg-surface-container-high md:bg-transparent flex items-center justify-center">
+                <Icon name="hive" className="text-primary" />
+              </span>
+              {title && (
+                <span className="md:hidden flex flex-col leading-tight">
+                  <span className="text-label-sm uppercase tracking-widest text-on-surface-variant">TaskHive</span>
+                  <span className="text-headline-sm text-on-surface">{title}</span>
+                </span>
+              )}
+              <span className={`text-headline-sm text-on-surface group-hover:text-primary transition-colors ${title ? "hidden md:inline" : ""}`}>
+                TaskHive
               </span>
             </Link>
             <nav className="hidden md:flex items-center gap-space-lg">
@@ -114,7 +121,7 @@ export default function AppShell({
                     type="button"
                     aria-label="Account menu"
                     onClick={() => setMenuOpen(o => !o)}
-                    className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center"
+                    className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center"
                   >
                     <Icon name="person" size={18} />
                   </button>
@@ -195,8 +202,10 @@ export default function AppShell({
               pathname === "/tasks/create" ? "text-primary" : "text-on-surface-variant"
             }`}
           >
-            <Icon name="add_circle" size={22} />
-            New
+            <span className="w-10 h-8 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center">
+              <Icon name="add" size={22} />
+            </span>
+            New Task
           </Link>
         </div>
       </nav>
