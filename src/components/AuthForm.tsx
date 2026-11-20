@@ -111,6 +111,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
                   type={showPw ? "text" : "password"}
                   required
                   minLength={isLogin ? undefined : 8}
+                  maxLength={isLogin ? undefined : 72}
                   autoComplete={isLogin ? "current-password" : "new-password"}
                   value={password}
                   onChange={e => setPassword(e.target.value)}

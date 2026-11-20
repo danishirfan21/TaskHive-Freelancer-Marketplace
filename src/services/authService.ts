@@ -6,7 +6,8 @@ import { z } from "zod";
 
 export const RegisterSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  // bcrypt only uses the first 72 bytes, so longer passwords add nothing but cost.
+  password: z.string().min(8).max(72),
 });
 
 export const LoginSchema = z.object({
@@ -31,6 +32,9 @@ export async function registerUser(data: z.infer<typeof RegisterSchema>) {
   return user;
 }
 
+// Compared against when the email is unknown, so response time doesn't reveal which emails exist.
+const DUMMY_HASH = "$2a$12$Vql4o3QXPUCbDRdnUhosQeni70ygxVjCeDiP9yMNIjnRSroRz6Pti";
+
 export async function loginUser(data: z.infer<typeof LoginSchema>) {
   const [user] = await db
     .select()
@@ -38,7 +42,10 @@ export async function loginUser(data: z.infer<typeof LoginSchema>) {
     .where(sql`lower(${users.email}) = ${data.email.trim().toLowerCase()}`)
     .limit(1);
 
-  if (!user) return null;
+  if (!user) {
+    await bcrypt.compare(data.password, DUMMY_HASH);
+    return null;
+  }
 
   const isValid = await bcrypt.compare(data.password, user.passwordHash);
   if (!isValid) return null;
