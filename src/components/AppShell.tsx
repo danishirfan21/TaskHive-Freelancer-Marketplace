@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, ApiError } from "@/lib/apiFetch";
 
 export interface Session {
   userId: number;
@@ -44,6 +44,7 @@ export default function AppShell({
   const pathname = usePathname();
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -52,8 +53,15 @@ export default function AppShell({
       .then(me => {
         if (!cancelled) setSession({ userId: (me.id ?? me.userId) as number, email: me.email });
       })
-      .catch(() => {
-        if (!cancelled && requireAuth) router.replace("/login");
+      .catch(err => {
+        if (cancelled) return;
+        // Only a real 401 means "signed out"; a server hiccup must not bounce the user to login.
+        const signedOut = err instanceof ApiError && err.status === 401;
+        if (signedOut) {
+          if (requireAuth) router.replace("/login");
+        } else if (requireAuth) {
+          setAuthError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setReady(true);
@@ -202,7 +210,14 @@ export default function AppShell({
       </header>
 
       <main className="flex-1 w-full md:max-lg:pl-[calc(88px+2rem)] max-w-[1100px] mx-auto px-margin md:px-margin-desktop py-space-xl pb-28 md:pb-space-3xl">
-        {blocked ? (
+        {blocked && authError ? (
+          <div className="py-space-3xl text-center">
+            <p className="text-body-lg">Couldn&apos;t reach the server.</p>
+            <button type="button" className="btn-secondary mt-space-lg" onClick={() => window.location.reload()}>
+              Try again
+            </button>
+          </div>
+        ) : blocked ? (
           <div className="py-space-3xl">
             <LoadingSpinner size={28} inline={false} />
           </div>
